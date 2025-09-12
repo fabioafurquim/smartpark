@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ConfiguracaoSistema {
+  id                             String   @id @default(cuid())
+  administradorMestreConfigurado Boolean  @default(false)
+  criadoEm                       DateTime @default(now())
+  atualizadoEm                   DateTime @updatedAt
+
+  @@map("configuracao_sistema")
+}
+
+model Usuario {
+  id                   String                @id @default(cuid())
+  nome                 String
+  email                String                @unique
+  senha                String?
+  ativo                Boolean               @default(true)
+  criadoEm             DateTime              @default(now())
+  atualizadoEm         DateTime              @updatedAt
+  accounts             Account[]
+  perfis               PerfilUsuario[]
+  sessions             Session[]
+  solicitacoesCadastro SolicitacaoCadastro[]
+  vagasProprietario    Vaga[]                @relation("ProprietarioVaga")
+
+  @@map("usuarios")
+}
+
+model Condominio {
+  id                   String                @id @default(cuid())
+  nome                 String
+  endereco             String
+  telefone             String?
+  email                String?
+  codigoUnico          String                @unique
+  logoUrl              String?
+  ativo                Boolean               @default(true)
+  criadoEm             DateTime              @default(now())
+  atualizadoEm         DateTime              @updatedAt
+  perfisUsuario        PerfilUsuario[]
+  solicitacoesCadastro SolicitacaoCadastro[]
+  torres               Torre[]
+  unidades             Unidade[]
+  vagas                Vaga[]
+
+  @@map("condominios")
+}
+
+model Torre {
+  id           String     @id @default(cuid())
+  nome         String
+  tipo         String     @default("TORRE") // TORRE ou BLOCO
+  descricao    String?
+  condominioId String
+  criadoEm     DateTime   @default(now())
+  atualizadoEm DateTime   @updatedAt
+  condominio   Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  unidades     Unidade[]
+
+  @@map("torres")
+}
+
+model Unidade {
+  id                   String                @id @default(cuid())
+  numero               String
+  andar                Int                   @default(0)
+  tipo                 String                @default("APARTAMENTO") // APARTAMENTO, COBERTURA, LOJA, SALA
+  proprietario         String?
+  contato              String?
+  torreId              String
+  condominioId         String
+  criadoEm             DateTime              @default(now())
+  atualizadoEm         DateTime              @updatedAt
+  solicitacoesCadastro SolicitacaoCadastro[]
+  torre                Torre                 @relation(fields: [torreId], references: [id], onDelete: Cascade)
+  condominio           Condominio            @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  vagas                Vaga[]
+
+  @@map("unidades")
+}
+
+model Vaga {
+  id                   String                @id @default(cuid())
+  numero               String
+  tipo                 String                @default("COBERTA") // COBERTA, DESCOBERTA, DEFICIENTE, IDOSO, VISITANTE
+  unidadeId            String                // Agora obrigatório - toda vaga deve estar vinculada a uma unidade
+  condominioId         String
+  proprietarioId       String?
+  criadoEm             DateTime              @default(now())
+  atualizadoEm         DateTime              @updatedAt
+  solicitacoesCadastro SolicitacaoCadastro[]
+  proprietario         Usuario?              @relation("ProprietarioVaga", fields: [proprietarioId], references: [id])
+  unidade              Unidade               @relation(fields: [unidadeId], references: [id], onDelete: Cascade)
+  condominio           Condominio            @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+
+  @@map("vagas")
+}
+
+model PerfilUsuario {
+  id           String     @id @default(cuid())
+  usuarioId    String
+  condominioId String
+  tipo         String
+  permissoes   Json?
+  ativo        Boolean    @default(true)
+  criadoEm     DateTime   @default(now())
+  atualizadoEm DateTime   @updatedAt
+  condominio   Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  usuario      Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, condominioId, tipo])
+  @@map("perfis_usuario")
+}
+
+model SolicitacaoCadastro {
+  id           String     @id @default(cuid())
+  usuarioId    String
+  condominioId String
+  unidadeId    String?
+  vagaId       String?
+  status       String     @default("pendente")
+  observacoes  String?
+  criadoEm     DateTime   @default(now())
+  atualizadoEm DateTime   @updatedAt
+  condominio   Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  unidade      Unidade?   @relation(fields: [unidadeId], references: [id])
+  usuario      Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  vaga         Vaga?      @relation(fields: [vagaId], references: [id])
+
+  @@map("solicitacoes_cadastro")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              Usuario @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         Usuario  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
