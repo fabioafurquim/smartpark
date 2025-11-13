@@ -1,18 +1,19 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { Layout } from '@/components/Layout';
 import { 
   Building2, 
   Users, 
   Car, 
-  TrendingUp, 
   AlertTriangle,
-  CheckCircle,
+  TrendingUp,
+  Calendar,
+  MapPin,
   Clock,
-  DollarSign
+  CheckCircle
 } from 'lucide-react';
-import { Layout } from '@/components';
 import { cn } from '@/lib/utils';
 import type { EstatisticasDashboard } from '@/types';
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Layout } from '@/components/Layout';
-import { Button, Input, Modal, Table } from '@/components/ui';
+import { Button, Input, Modal, ModalFooter, Table } from '@/components/ui';
 import { 
   Plus, 
   Search, 
@@ -18,6 +18,8 @@ import {
   Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { criarCondominioSchema, type CriarCondominioData } from '@/lib/validations/condominio';
+import { z } from 'zod';
 
 interface Condominio {
   id: string;
@@ -45,6 +47,20 @@ export default function AdminCondominiosPage() {
     aberto: boolean;
     condominio?: Condominio;
   }>({ aberto: false });
+  const [modalCriacao, setModalCriacao] = useState(false);
+  const [modalEdicao, setModalEdicao] = useState<{
+    aberto: boolean;
+    condominio?: Condominio;
+  }>({ aberto: false });
+  const [formData, setFormData] = useState<CriarCondominioData>({
+    nome: '',
+    endereco: '',
+    telefone: '',
+    email: '',
+    logoUrl: ''
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [errosValidacao, setErrosValidacao] = useState<Record<string, string>>({});
 
   // Buscar condomínios
   const buscarCondominios = async () => {
@@ -63,6 +79,141 @@ export default function AdminCondominiosPage() {
     } finally {
       setCarregando(false);
     }
+  };
+
+  // Criar condomínio
+  const criarCondominio = async () => {
+    try {
+      setSalvando(true);
+      setErrosValidacao({});
+
+      // Validar dados no frontend
+      const dadosValidados = criarCondominioSchema.parse(formData);
+      
+      const response = await fetch('/api/admin/condominios', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dadosValidados),
+      });
+
+      if (response.ok) {
+        await buscarCondominios();
+        setModalCriacao(false);
+        setFormData({
+          nome: '',
+          endereco: '',
+          telefone: '',
+          email: '',
+          logoUrl: ''
+        });
+        setErrosValidacao({});
+        alert('Condomínio criado com sucesso!');
+      } else {
+        const erro = await response.json();
+        if (erro.detalhes) {
+          const novosErros: Record<string, string> = {};
+          erro.detalhes.forEach((d: any) => {
+            novosErros[d.campo] = d.mensagem;
+          });
+          setErrosValidacao(novosErros);
+        } else {
+          alert(erro.erro || 'Erro ao criar condomínio');
+        }
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        // Erros de validação do Zod
+        const novosErros: Record<string, string> = {};
+        error.errors.forEach((erro) => {
+          if (erro.path && erro.path.length > 0) {
+            novosErros[erro.path[0]] = erro.message;
+          }
+        });
+        setErrosValidacao(novosErros);
+      } else {
+        console.error('Erro ao criar condomínio:', error);
+        alert('Erro ao criar condomínio');
+      }
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  // Editar condomínio
+  const editarCondominio = async () => {
+    try {
+      setSalvando(true);
+      setErrosValidacao({});
+
+      if (!modalEdicao.condominio) return;
+
+      // Validar dados no frontend
+      const dadosValidados = criarCondominioSchema.parse(formData);
+      
+      const response = await fetch(`/api/admin/condominios/${modalEdicao.condominio.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dadosValidados),
+      });
+
+      if (response.ok) {
+        await buscarCondominios();
+        setModalEdicao({ aberto: false });
+        setFormData({
+          nome: '',
+          endereco: '',
+          telefone: '',
+          email: '',
+          logoUrl: ''
+        });
+        setErrosValidacao({});
+        alert('Condomínio atualizado com sucesso!');
+      } else {
+        const erro = await response.json();
+        if (erro.detalhes) {
+          const novosErros: Record<string, string> = {};
+          erro.detalhes.forEach((d: any) => {
+            novosErros[d.campo] = d.mensagem;
+          });
+          setErrosValidacao(novosErros);
+        } else {
+          alert(erro.erro || 'Erro ao atualizar condomínio');
+        }
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        // Erros de validação do Zod
+        const novosErros: Record<string, string> = {};
+        error.errors.forEach((erro) => {
+          if (erro.path && erro.path.length > 0) {
+            novosErros[erro.path[0]] = erro.message;
+          }
+        });
+        setErrosValidacao(novosErros);
+      } else {
+        console.error('Erro ao atualizar condomínio:', error);
+        alert('Erro ao atualizar condomínio');
+      }
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  // Abrir modal de edição
+  const abrirModalEdicao = (condominio: Condominio) => {
+    setFormData({
+      nome: condominio.nome,
+      endereco: condominio.endereco,
+      telefone: condominio.telefone || '',
+      email: condominio.email || '',
+      logoUrl: ''
+    });
+    setErrosValidacao({});
+    setModalEdicao({ aberto: true, condominio });
   };
 
   // Excluir condomínio
@@ -95,107 +246,119 @@ export default function AdminCondominiosPage() {
     {
       chave: 'nome' as keyof Condominio,
       titulo: 'Nome',
-      renderizar: (condominio: Condominio) => (
-        <div className="flex items-center space-x-3">
-          <div className="flex-shrink-0">
-            <Building2 className="h-8 w-8 text-blue-600" />
-          </div>
-          <div>
-            <div className="text-sm font-medium text-gray-900">
-              {condominio.nome}
+      renderizar: (condominio: Condominio) => {
+        if (!condominio) return null;
+        return (
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              <Building2 className="h-8 w-8 text-blue-600" />
             </div>
-            <div className="text-sm text-gray-500 flex items-center">
-              <MapPin className="h-3 w-3 mr-1" />
-              {condominio.endereco}
+            <div>
+              <div className="text-sm font-medium text-gray-900">
+                {condominio.nome}
+              </div>
+              <div className="text-sm text-gray-500 flex items-center">
+                <MapPin className="h-3 w-3 mr-1" />
+                {condominio.endereco}
+              </div>
             </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       chave: 'contato' as keyof Condominio,
       titulo: 'Contato',
-      renderizar: (condominio: Condominio) => (
-        <div className="text-sm">
-          {condominio.telefone && (
-            <div className="flex items-center text-gray-600">
-              <Phone className="h-3 w-3 mr-1" />
-              {condominio.telefone}
-            </div>
-          )}
-          {condominio.email && (
-            <div className="flex items-center text-gray-600 mt-1">
-              <Mail className="h-3 w-3 mr-1" />
-              {condominio.email}
-            </div>
-          )}
-        </div>
-      ),
+      renderizar: (condominio: Condominio) => {
+        if (!condominio) return null;
+        return (
+          <div className="text-sm">
+            {condominio.telefone && (
+              <div className="flex items-center text-gray-600">
+                <Phone className="h-3 w-3 mr-1" />
+                {condominio.telefone}
+              </div>
+            )}
+            {condominio.email && (
+              <div className="flex items-center text-gray-600 mt-1">
+                <Mail className="h-3 w-3 mr-1" />
+                {condominio.email}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       chave: 'estatisticas' as keyof Condominio,
       titulo: 'Estatísticas',
-      renderizar: (condominio: Condominio) => (
-        <div className="text-sm">
-          <div className="flex items-center text-gray-600">
-            <Users className="h-3 w-3 mr-1" />
-            {condominio.totalUsuarios} usuários
+      renderizar: (condominio: Condominio) => {
+        if (!condominio) return null;
+        return (
+          <div className="text-sm">
+            <div className="flex items-center text-gray-600">
+              <Users className="h-3 w-3 mr-1" />
+              {condominio.totalUsuarios} usuários
+            </div>
+            <div className="flex items-center text-gray-600 mt-1">
+              <Car className="h-3 w-3 mr-1" />
+              {condominio.vagasOcupadas}/{condominio.totalVagas} vagas
+            </div>
           </div>
-          <div className="flex items-center text-gray-600 mt-1">
-            <Car className="h-3 w-3 mr-1" />
-            {condominio.vagasOcupadas}/{condominio.totalVagas} vagas
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       chave: 'ativo' as keyof Condominio,
       titulo: 'Status',
-      renderizar: (condominio: Condominio) => (
-        <span
-          className={cn(
-            'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-            condominio.ativo
-              ? 'bg-green-100 text-green-800'
-              : 'bg-red-100 text-red-800'
-          )}
-        >
-          {condominio.ativo ? 'Ativo' : 'Inativo'}
-        </span>
-      ),
+      renderizar: (condominio: Condominio) => {
+        if (!condominio) return null;
+        return (
+          <span
+            className={cn(
+              'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+              condominio.ativo
+                ? 'bg-green-100 text-green-800'
+                : 'bg-red-100 text-red-800'
+            )}
+          >
+            {condominio.ativo ? 'Ativo' : 'Inativo'}
+          </span>
+        );
+      },
     },
     {
       chave: 'acoes' as keyof Condominio,
       titulo: 'Ações',
-      renderizar: (condominio: Condominio) => (
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setModalDetalhes({ aberto: true, condominio })}
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              // TODO: Implementar edição
-              alert('Funcionalidade de edição será implementada');
-            }}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setModalExclusao({ aberto: true, condominio })}
-            className="text-red-600 hover:text-red-700"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
+      renderizar: (condominio: Condominio) => {
+        if (!condominio) return null;
+        return (
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setModalDetalhes({ aberto: true, condominio })}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => abrirModalEdicao(condominio)}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setModalExclusao({ aberto: true, condominio })}
+              className="text-red-600 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -213,10 +376,7 @@ export default function AdminCondominiosPage() {
             </p>
           </div>
           <Button
-            onClick={() => {
-              // TODO: Implementar criação
-              alert('Funcionalidade de criação será implementada');
-            }}
+            onClick={() => setModalCriacao(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
             Novo Condomínio
@@ -244,8 +404,8 @@ export default function AdminCondominiosPage() {
         {/* Tabela */}
         <div className="bg-white rounded-lg shadow">
           <Table
-            dados={condominios}
-            colunas={colunas}
+            colunas={colunas as any}
+            dados={condominios as unknown as Record<string, unknown>[]}
             carregando={carregando}
             mensagemVazia="Nenhum condomínio encontrado"
           />
@@ -361,41 +521,265 @@ export default function AdminCondominiosPage() {
         aberto={modalExclusao.aberto}
         aoFechar={() => setModalExclusao({ aberto: false })}
         titulo="Confirmar Exclusão"
-        rodape={
-          <div className="flex justify-end space-x-3">
-            <Button
-              variant="outline"
-              onClick={() => setModalExclusao({ aberto: false })}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (modalExclusao.condominio) {
-                  excluirCondominio(modalExclusao.condominio.id);
-                }
-              }}
-            >
-              Excluir
-            </Button>
-          </div>
-        }
       >
         {modalExclusao.condominio && (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+          <div className="p-6">
+            <p className="text-gray-600 mb-4">
               Tem certeza que deseja excluir o condomínio{' '}
               <strong>{modalExclusao.condominio.nome}</strong>?
             </p>
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-600">
-                <strong>Atenção:</strong> Esta ação não pode ser desfeita. Todos os
-                dados relacionados ao condomínio serão permanentemente removidos.
-              </p>
-            </div>
+            <p className="text-sm text-red-600">
+              Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.
+            </p>
           </div>
         )}
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => setModalExclusao({ aberto: false })}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (modalExclusao.condominio) {
+                excluirCondominio(modalExclusao.condominio.id);
+              }
+            }}
+          >
+            Excluir
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Modal de Edição */}
+      <Modal
+        aberto={modalEdicao.aberto}
+        aoFechar={() => setModalEdicao({ aberto: false })}
+        titulo="Editar Condomínio"
+        tamanho="lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nome do Condomínio *
+            </label>
+            <Input
+              type="text"
+              value={formData.nome}
+              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+              placeholder="Ex: Residencial Jardim das Flores"
+              required
+              className={errosValidacao.nome ? 'border-red-500' : ''}
+            />
+            {errosValidacao.nome && (
+              <p className="text-red-500 text-sm mt-1">{errosValidacao.nome}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Endereço Completo *
+            </label>
+            <Input
+              type="text"
+              value={formData.endereco}
+              onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+              placeholder="Ex: Rua das Flores, 123, Centro, São Paulo - SP"
+              required
+              className={errosValidacao.endereco ? 'border-red-500' : ''}
+            />
+            {errosValidacao.endereco && (
+              <p className="text-red-500 text-sm mt-1">{errosValidacao.endereco}</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Telefone
+              </label>
+              <Input
+                type="tel"
+                value={formData.telefone}
+                onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                placeholder="(11) 99999-9999"
+                className={errosValidacao.telefone ? 'border-red-500' : ''}
+              />
+              {errosValidacao.telefone && (
+                <p className="text-red-500 text-sm mt-1">{errosValidacao.telefone}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                E-mail
+              </label>
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="contato@condominio.com.br"
+                className={errosValidacao.email ? 'border-red-500' : ''}
+              />
+              {errosValidacao.email && (
+                <p className="text-red-500 text-sm mt-1">{errosValidacao.email}</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              URL do Logo (opcional)
+            </label>
+            <Input
+              type="url"
+              value={formData.logoUrl}
+              onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
+              placeholder="https://exemplo.com/logo.png"
+              className={errosValidacao.logoUrl ? 'border-red-500' : ''}
+            />
+            {errosValidacao.logoUrl && (
+              <p className="text-red-500 text-sm mt-1">{errosValidacao.logoUrl}</p>
+            )}
+          </div>
+
+          <div className="text-sm text-gray-500">
+            <p>* Campos obrigatórios</p>
+          </div>
+        </div>
+
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => setModalEdicao({ aberto: false })}
+            disabled={salvando}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={editarCondominio}
+            disabled={salvando || !formData.nome || !formData.endereco}
+          >
+            {salvando ? 'Salvando...' : 'Salvar Alterações'}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Modal de Criação */}
+      <Modal
+        aberto={modalCriacao}
+        aoFechar={() => setModalCriacao(false)}
+        titulo="Novo Condomínio"
+        tamanho="lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nome do Condomínio *
+            </label>
+            <Input
+              type="text"
+              value={formData.nome}
+              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+              placeholder="Ex: Residencial Jardim das Flores"
+              required
+              className={errosValidacao.nome ? 'border-red-500' : ''}
+            />
+            {errosValidacao.nome && (
+              <p className="text-red-500 text-sm mt-1">{errosValidacao.nome}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Endereço Completo *
+            </label>
+            <Input
+              type="text"
+              value={formData.endereco}
+              onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+              placeholder="Ex: Rua das Flores, 123, Centro, São Paulo - SP"
+              required
+              className={errosValidacao.endereco ? 'border-red-500' : ''}
+            />
+            {errosValidacao.endereco && (
+              <p className="text-red-500 text-sm mt-1">{errosValidacao.endereco}</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Telefone
+              </label>
+              <Input
+                type="tel"
+                value={formData.telefone}
+                onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                placeholder="(11) 99999-9999"
+                className={errosValidacao.telefone ? 'border-red-500' : ''}
+              />
+              {errosValidacao.telefone && (
+                <p className="text-red-500 text-sm mt-1">{errosValidacao.telefone}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                E-mail
+              </label>
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="contato@condominio.com.br"
+                className={errosValidacao.email ? 'border-red-500' : ''}
+              />
+              {errosValidacao.email && (
+                <p className="text-red-500 text-sm mt-1">{errosValidacao.email}</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              URL do Logo (opcional)
+            </label>
+            <Input
+              type="url"
+              value={formData.logoUrl}
+              onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
+              placeholder="https://exemplo.com/logo.png"
+              className={errosValidacao.logoUrl ? 'border-red-500' : ''}
+            />
+            {errosValidacao.logoUrl && (
+              <p className="text-red-500 text-sm mt-1">{errosValidacao.logoUrl}</p>
+            )}
+          </div>
+
+          <div className="text-sm text-gray-500">
+            <p>* Campos obrigatórios</p>
+            <p>Um código único será gerado automaticamente para o condomínio.</p>
+          </div>
+        </div>
+
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => setModalCriacao(false)}
+            disabled={salvando}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={criarCondominio}
+            disabled={salvando || !formData.nome || !formData.endereco}
+          >
+            {salvando ? 'Criando...' : 'Criar Condomínio'}
+          </Button>
+        </ModalFooter>
       </Modal>
     </Layout>
   );

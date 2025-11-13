@@ -74,15 +74,21 @@ export default function TorreModal({
     }
   }, [isOpen, torre, selectedCondominioId]);
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
 
     if (!formData.nome.trim()) {
       newErrors.nome = 'Nome é obrigatório';
+    } else if (formData.nome.trim().length < 2) {
+      newErrors.nome = 'Nome deve ter pelo menos 2 caracteres';
     }
 
     if (!formData.condominioId) {
       newErrors.condominioId = 'Condomínio é obrigatório';
+    }
+
+    if (!formData.tipo) {
+      newErrors.tipo = 'Tipo é obrigatório';
     }
 
     setErrors(newErrors);

@@ -13,7 +13,9 @@ import {
   ChevronDown,
   ChevronRight,
   Menu,
-  X
+  X,
+  Calendar,
+  MapPin
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { temPermissao, ehAdministradorMestre } from '@/lib/auth';
@@ -113,10 +115,17 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
         {
           id: 'vagas',
           rotulo: 'Vagas',
-          icone: Building2,
+          icone: MapPin,
           href: '/dashboard/estrutura/vagas',
         },
       ],
+    },
+    {
+      id: 'reservas',
+      rotulo: 'Reservas',
+      icone: Calendar,
+      permissaoNecessaria: 'gerenciarReservas',
+      href: '/reservas',
     },
     {
       id: 'usuarios',

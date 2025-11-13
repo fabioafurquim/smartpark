@@ -166,7 +166,7 @@ export default function UnidadeModal({
     }
   };
 
-  const handleInputChange = (field: keyof UnidadeFormData, value: any) => {
+  const handleInputChange = (field: keyof UnidadeFormData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));

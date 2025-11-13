@@ -1,17 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Car, Plus, Search, Edit, Trash2, Building2, MapPin } from 'lucide-react';
+import VagaModal from '@/components/modals/VagaModal';
 import Link from 'next/link';
-import { Car, Plus, Edit, Trash2, Home } from 'lucide-react';
 import { Layout } from '@/components';
 import { Button } from '@/components/ui';
-import VagaModal from '@/components/modals/VagaModal';
 
 interface Vaga {
   id: string;
   numero: string;
   tipo: 'COBERTA' | 'DESCOBERTA' | 'DEFICIENTE';
   ocupada: boolean;
+  condominioId?: string;
   unidade?: {
     id: string;
     numero: string;
@@ -19,7 +20,7 @@ interface Vaga {
       nome: string;
     };
   };
-  condominio: {
+  condominio?: {
     id: string;
     nome: string;
   };
@@ -30,7 +31,7 @@ interface VagaFormData {
   numero: string;
   tipo: 'COBERTA' | 'DESCOBERTA' | 'DEFICIENTE' | 'IDOSO' | 'VISITANTE';
   unidadeId: string;
-  condominioId: string;
+  condominioId?: string;
   proprietarioId?: string;
 }
 
@@ -40,13 +41,13 @@ interface VagaFormData {
 export default function VagasPage() {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
   const [condominioSelecionado, setCondominioSelecionado] = useState<string>('');
   const [condominios, setCondominios] = useState<{id: string, nome: string}[]>([]);
   const [filtroTipo, setFiltroTipo] = useState<string>('TODAS');
   const [filtroStatus, setFiltroStatus] = useState<string>('TODAS');
   const [modalAberto, setModalAberto] = useState(false);
   const [vagaEditando, setVagaEditando] = useState<Vaga | null>(null);
-  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     const carregarCondominios = async () => {
@@ -54,11 +55,14 @@ export default function VagasPage() {
         const response = await fetch('/api/condominios');
         if (response.ok) {
           const dados = await response.json();
-          // Corrigir: acessar dados.condominios em vez de dados diretamente
-          setCondominios(dados.condominios || []);
-          if (dados.condominios && dados.condominios.length > 0) {
-            setCondominioSelecionado(dados.condominios[0].id);
+          // Acessar dados.condominios corretamente da estrutura da API
+          const condominiosList = dados.condominios || [];
+          setCondominios(condominiosList);
+          if (condominiosList.length > 0) {
+            setCondominioSelecionado(condominiosList[0].id);
           }
+        } else {
+          console.error('Erro ao carregar condomínios:', response.status);
         }
       } catch (error) {
         console.error('Erro ao carregar condomínios:', error);

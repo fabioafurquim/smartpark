@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '../../../../../../../../../../lib/auth';
+import { prisma } from '../../../../../../../../../../lib/prisma';
 import { z } from 'zod';
 
 // Schema de validação para atualização de vaga
 const updateVagaSchema = z.object({
-  numero: z.string().min(1, 'Número da vaga é obrigatório').optional(),
-  tipo: z.enum(['carro', 'moto', 'bicicleta', 'deficiente'], {
-    errorMap: () => ({ message: 'Tipo deve ser: carro, moto, bicicleta ou deficiente' })
-  }).optional(),
-  localizacao: z.string().optional(),
+  numero: z.string().min(1, 'Número é obrigatório').optional(),
+  tipo: z.enum(['carro', 'moto', 'bicicleta', 'deficiente']).optional(),
   observacoes: z.string().optional()
 });
 
@@ -25,7 +22,7 @@ export async function GET(
   try {
     // Verificar autenticação
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Não autorizado' },
         { status: 401 }
@@ -56,7 +53,7 @@ export async function GET(
         ativo: true,
         perfisUsuario: {
           some: {
-            usuarioId: session.user.id,
+            usuarioId: (session.user as any).id,
             ativo: true
           }
         }
@@ -129,7 +126,7 @@ export async function PUT(
   try {
     // Verificar autenticação
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Não autorizado' },
         { status: 401 }
@@ -160,7 +157,7 @@ export async function PUT(
         ativo: true,
         perfisUsuario: {
           some: {
-            usuarioId: session.user.id,
+            usuarioId: (session.user as any).id,
             tipo: {
               in: ['administrador_mestre', 'administrador_condominio', 'sindico']
             },
@@ -279,7 +276,7 @@ export async function DELETE(
   try {
     // Verificar autenticação
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Não autorizado' },
         { status: 401 }
@@ -310,7 +307,7 @@ export async function DELETE(
         ativo: true,
         perfisUsuario: {
           some: {
-            usuarioId: session.user.id,
+            usuarioId: (session.user as any).id,
             tipo: {
               in: ['administrador_mestre', 'administrador_condominio', 'sindico']
             },

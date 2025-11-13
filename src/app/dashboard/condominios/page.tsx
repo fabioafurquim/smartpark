@@ -12,6 +12,7 @@ import {
   UsersIcon,
   Square3Stack3DIcon
 } from '@heroicons/react/24/outline';
+import { Layout } from '@/components/Layout';
 
 interface Condominio {
   id: string;
@@ -33,6 +34,7 @@ interface ApiResponse {
   total: number;
   pagina: number;
   totalPaginas: number;
+  error?: string;
 }
 
 export default function CondominiosPage() {
@@ -114,7 +116,8 @@ export default function CondominiosPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <Layout>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -383,6 +386,7 @@ export default function CondominiosPage() {
           )}
         </>
       )}
-    </div>
+      </div>
+    </Layout>
   );
 }

@@ -51,7 +51,7 @@ async function createAdmin() {
       data: {
         usuarioId: novoAdmin.id,
         condominioId: condominio.id,
-        tipo: 'ADMINISTRADOR_MESTRE',
+        tipo: 'administrador_mestre',
         ativo: true
       }
     });

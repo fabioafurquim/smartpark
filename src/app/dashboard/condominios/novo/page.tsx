@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { z } from 'zod';
-import { criarCondominioSchema } from '@/lib/validations';
+import { criarCondominioSchema } from '@/lib/validations/condominio';
+import { Layout } from '@/components/Layout';
 
 type FormData = z.infer<typeof criarCondominioSchema>;
 
@@ -22,6 +23,7 @@ export default function NovoCondominioPage() {
     endereco: '',
     telefone: '',
     email: '',
+    logoUrl: '',
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -42,7 +44,7 @@ export default function NovoCondominioPage() {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const newErrors: FormErrors = {};
-        error.errors.forEach((err) => {
+        error.issues.forEach((err) => {
           if (err.path[0]) {
             newErrors[err.path[0] as string] = err.message;
           }
@@ -100,7 +102,8 @@ export default function NovoCondominioPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <Layout>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center space-x-4">
         <Link
@@ -275,6 +278,7 @@ export default function NovoCondominioPage() {
           </div>
         </form>
       </div>
-    </div>
+      </div>
+    </Layout>
   );
 }

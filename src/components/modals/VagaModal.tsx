@@ -9,14 +9,14 @@ interface Vaga {
   numero: string;
   tipo: 'COBERTA' | 'DESCOBERTA' | 'DEFICIENTE' | 'IDOSO' | 'VISITANTE';
   unidadeId?: string;
-  condominioId: string;
+  condominioId?: string;
   proprietarioId?: string;
   ocupada?: boolean;
   unidade?: {
     id: string;
     numero: string;
   };
-  condominio: {
+  condominio?: {
     id: string;
     nome: string;
   };
@@ -25,14 +25,6 @@ interface Vaga {
 interface Condominio {
   id: string;
   nome: string;
-}
-
-interface Unidade {
-  id: string;
-  numero: string;
-  torre: {
-    nome: string;
-  };
 }
 
 interface VagaFormData {
@@ -77,7 +69,7 @@ export default function VagaModal({
           numero: vaga.numero,
           tipo: vaga.tipo,
           unidadeId: vaga.unidadeId || '', // Será validado como obrigatório
-          condominioId: vaga.condominioId,
+          condominioId: vaga.condominioId || '',
           proprietarioId: vaga.proprietarioId
         });
       } else {
@@ -246,7 +238,7 @@ export default function VagaModal({
             <select
               id="tipo"
               value={formData.tipo}
-              onChange={(e) => handleInputChange('tipo', e.target.value as any)}
+              onChange={(e) => handleInputChange('tipo', e.target.value as VagaFormData['tipo'])}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="DESCOBERTA">Descoberta</option>

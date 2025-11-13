@@ -1,34 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '../../../../lib/auth';
+import { prisma } from '../../../../lib/prisma';
 import { z } from 'zod';
 
 // Schema de validação para atualização de unidade
 const updateUnidadeSchema = z.object({
   numero: z.string().min(1, 'Número é obrigatório').optional(),
   andar: z.number().int().min(0, 'Andar deve ser um número inteiro não negativo').optional(),
-  tipo: z.enum(['APARTAMENTO', 'SALA_COMERCIAL', 'LOJA', 'COBERTURA'], {
-    errorMap: () => ({ message: 'Tipo deve ser APARTAMENTO, SALA_COMERCIAL, LOJA ou COBERTURA' })
-  }).optional(),
+  tipo: z.enum(['APARTAMENTO', 'SALA_COMERCIAL', 'LOJA', 'COBERTURA']).optional(),
   proprietario: z.string().optional(),
-  telefone: z.string().optional(),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
-  observacoes: z.string().optional()
+  contato: z.string().optional()
 });
-
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
 
 /**
  * GET /api/unidades/[id] - Busca unidade específica
  */
 export async function GET(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -36,8 +26,9 @@ export async function GET(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     const unidade = await prisma.unidade.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         condominio: {
           select: {
@@ -56,8 +47,7 @@ export async function GET(
           select: {
             id: true,
             numero: true,
-            tipo: true,
-            status: true
+            tipo: true
           },
           orderBy: {
             numero: 'asc'
@@ -84,9 +74,7 @@ export async function GET(
       andar: unidade.andar,
       tipo: unidade.tipo,
       proprietario: unidade.proprietario,
-      telefone: unidade.telefone,
-      email: unidade.email,
-      observacoes: unidade.observacoes,
+      contato: unidade.contato,
       condominioId: unidade.condominioId,
       torreId: unidade.torreId,
       condominio: unidade.condominio,
@@ -112,7 +100,7 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -123,9 +111,10 @@ export async function PUT(
     const body = await request.json();
     const validatedData = updateUnidadeSchema.parse(body);
 
+    const { id } = await params;
     // Verificar se a unidade existe
     const unidadeExistente = await prisma.unidade.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!unidadeExistente) {
@@ -141,7 +130,7 @@ export async function PUT(
         where: {
           numero: validatedData.numero,
           torreId: unidadeExistente.torreId,
-          id: { not: params.id }
+          id: { not: id }
         }
       });
 
@@ -154,7 +143,7 @@ export async function PUT(
     }
 
     const unidadeAtualizada = await prisma.unidade.update({
-      where: { id: params.id },
+      where: { id },
       data: validatedData,
       include: {
         condominio: {
@@ -184,9 +173,7 @@ export async function PUT(
       andar: unidadeAtualizada.andar,
       tipo: unidadeAtualizada.tipo,
       proprietario: unidadeAtualizada.proprietario,
-      telefone: unidadeAtualizada.telefone,
-      email: unidadeAtualizada.email,
-      observacoes: unidadeAtualizada.observacoes,
+      contato: unidadeAtualizada.contato,
       condominioId: unidadeAtualizada.condominioId,
       torreId: unidadeAtualizada.torreId,
       condominio: unidadeAtualizada.condominio,
@@ -200,7 +187,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Dados inválidos', details: error.errors },
+        { error: 'Dados inválidos', details: error.issues },
         { status: 400 }
       );
     }
@@ -218,7 +205,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -226,9 +213,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     // Verificar se a unidade existe
     const unidade = await prisma.unidade.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         _count: {
           select: {
@@ -257,7 +245,7 @@ export async function DELETE(
     }
 
     await prisma.unidade.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json(

@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '../../../../../../../lib/auth';
+import { prisma } from '../../../../../../../lib/prisma';
 import { z } from 'zod';
 
 // Schema de validação para criação de unidade
 const createUnidadeSchema = z.object({
   numero: z.string().min(1, 'Número da unidade é obrigatório'),
-  andar: z.number().int().min(0, 'Andar deve ser um número inteiro não negativo').optional(),
-  area: z.number().positive('Área deve ser um número positivo').optional(),
-  quartos: z.number().int().min(0, 'Número de quartos deve ser um inteiro não negativo').optional(),
-  banheiros: z.number().int().min(0, 'Número de banheiros deve ser um inteiro não negativo').optional(),
-  observacoes: z.string().optional()
+  andar: z.number().int().min(0, 'Andar deve ser um número inteiro não negativo').optional().default(0),
+  tipo: z.enum(['APARTAMENTO', 'COBERTURA', 'LOJA', 'SALA']).optional().default('APARTAMENTO'),
+  proprietario: z.string().optional(),
+  contato: z.string().optional()
 });
 
 /**
@@ -25,7 +24,7 @@ export async function GET(
   try {
     // Verificar autenticação
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Não autorizado' },
         { status: 401 }
@@ -54,7 +53,7 @@ export async function GET(
         ativo: true,
         perfisUsuario: {
           some: {
-            usuarioId: session.user.id,
+            usuarioId: (session.user as any).id,
             ativo: true
           }
         }
@@ -131,7 +130,7 @@ export async function POST(
   try {
     // Verificar autenticação
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Não autorizado' },
         { status: 401 }
@@ -160,7 +159,7 @@ export async function POST(
         ativo: true,
         perfisUsuario: {
           some: {
-            usuarioId: session.user.id,
+            usuarioId: (session.user as any).id,
             tipo: {
               in: ['administrador_mestre', 'administrador_condominio', 'sindico']
             },
@@ -226,8 +225,13 @@ export async function POST(
     // Criar a unidade
     const novaUnidade = await prisma.unidade.create({
       data: {
-        ...dadosUnidade,
-        torreId: torreId
+        numero: dadosUnidade.numero,
+        andar: dadosUnidade.andar || 0,
+        tipo: dadosUnidade.tipo || 'APARTAMENTO',
+        proprietario: dadosUnidade.proprietario,
+        contato: dadosUnidade.contato,
+        torreId: torreId,
+        condominioId: condominioId
       },
       include: {
         _count: {

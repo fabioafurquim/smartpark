@@ -26,6 +26,7 @@ model Usuario {
   atualizadoEm         DateTime              @updatedAt
   accounts             Account[]
   perfis               PerfilUsuario[]
+  reservas             Reserva[]             @relation("ReservasUsuario")
   sessions             Session[]
   solicitacoesCadastro SolicitacaoCadastro[]
   vagasProprietario    Vaga[]                @relation("ProprietarioVaga")
@@ -45,6 +46,7 @@ model Condominio {
   criadoEm             DateTime              @default(now())
   atualizadoEm         DateTime              @updatedAt
   perfisUsuario        PerfilUsuario[]
+  reservas             Reserva[]
   solicitacoesCadastro SolicitacaoCadastro[]
   torres               Torre[]
   unidades             Unidade[]
@@ -56,11 +58,11 @@ model Condominio {
 model Torre {
   id           String     @id @default(cuid())
   nome         String
-  tipo         String     @default("TORRE") // TORRE ou BLOCO
   descricao    String?
   condominioId String
   criadoEm     DateTime   @default(now())
   atualizadoEm DateTime   @updatedAt
+  tipo         String     @default("TORRE")
   condominio   Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
   unidades     Unidade[]
 
@@ -70,17 +72,17 @@ model Torre {
 model Unidade {
   id                   String                @id @default(cuid())
   numero               String
-  andar                Int                   @default(0)
-  tipo                 String                @default("APARTAMENTO") // APARTAMENTO, COBERTURA, LOJA, SALA
-  proprietario         String?
-  contato              String?
   torreId              String
-  condominioId         String
   criadoEm             DateTime              @default(now())
   atualizadoEm         DateTime              @updatedAt
+  condominioId         String
+  contato              String?
+  proprietario         String?
+  tipo                 String                @default("APARTAMENTO")
+  andar                Int                   @default(0)
   solicitacoesCadastro SolicitacaoCadastro[]
-  torre                Torre                 @relation(fields: [torreId], references: [id], onDelete: Cascade)
   condominio           Condominio            @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  torre                Torre                 @relation(fields: [torreId], references: [id], onDelete: Cascade)
   vagas                Vaga[]
 
   @@map("unidades")
@@ -89,18 +91,37 @@ model Unidade {
 model Vaga {
   id                   String                @id @default(cuid())
   numero               String
-  tipo                 String                @default("COBERTA") // COBERTA, DESCOBERTA, DEFICIENTE, IDOSO, VISITANTE
-  unidadeId            String                // Agora obrigatório - toda vaga deve estar vinculada a uma unidade
-  condominioId         String
+  tipo                 String                @default("COBERTA")
+  unidadeId            String
   proprietarioId       String?
   criadoEm             DateTime              @default(now())
   atualizadoEm         DateTime              @updatedAt
+  condominioId         String
+  reservas             Reserva[]
   solicitacoesCadastro SolicitacaoCadastro[]
+  condominio           Condominio            @relation(fields: [condominioId], references: [id], onDelete: Cascade)
   proprietario         Usuario?              @relation("ProprietarioVaga", fields: [proprietarioId], references: [id])
   unidade              Unidade               @relation(fields: [unidadeId], references: [id], onDelete: Cascade)
-  condominio           Condominio            @relation(fields: [condominioId], references: [id], onDelete: Cascade)
 
   @@map("vagas")
+}
+
+model Reserva {
+  id           String     @id @default(cuid())
+  vagaId       String
+  usuarioId    String
+  condominioId String
+  dataInicio   DateTime
+  dataFim      DateTime
+  status       String     @default("ativa")
+  observacoes  String?
+  criadoEm     DateTime   @default(now())
+  atualizadoEm DateTime   @updatedAt
+  condominio   Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  usuario      Usuario    @relation("ReservasUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+  vaga         Vaga       @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+
+  @@map("reservas")
 }
 
 model PerfilUsuario {

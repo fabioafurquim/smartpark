@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '../../../lib/prisma';
 import { z } from 'zod';
-import { middlewareEstrutura } from '@/lib/auth-middleware';
-import { UsuarioSessao } from '@/types';
+import { middlewareEstrutura } from '../../../lib/auth-middleware';
+import { UsuarioSessao } from '../../../types';
 
 // Schema de validação para unidade
 const unidadeSchema = z.object({
   numero: z.string().min(1, 'Número é obrigatório'),
-  andar: z.number().int().min(0, 'Andar deve ser um número inteiro não negativo'),
-  tipo: z.enum(['APARTAMENTO', 'SALA_COMERCIAL', 'LOJA', 'COBERTURA'], {
-    errorMap: () => ({ message: 'Tipo deve ser APARTAMENTO, SALA_COMERCIAL, LOJA ou COBERTURA' })
-  }),
-  torreId: z.string().min(1, 'Torre/Bloco é obrigatório'),
-  condominioId: z.string().min(1, 'Condomínio é obrigatório'),
-  proprietario: z.string().optional(),
+  tipo: z.enum(['APARTAMENTO', 'SALA_COMERCIAL', 'LOJA', 'COBERTURA']),
+  proprietario: z.string().min(1, 'Proprietário é obrigatório'),
   telefone: z.string().optional(),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
-  observacoes: z.string().optional()
+  email: z.string().email('Email inválido').optional(),
+  torreId: z.string().min(1, 'Torre é obrigatória'),
+  condominioId: z.string().min(1, 'Condomínio é obrigatório')
 });
 
 /**
@@ -70,15 +66,13 @@ export async function GET(request: NextRequest) {
         andar: unidade.andar,
         tipo: unidade.tipo,
         proprietario: unidade.proprietario,
-        telefone: unidade.telefone,
-        email: unidade.email,
-        observacoes: unidade.observacoes,
         condominioId: unidade.condominioId,
         torreId: unidade.torreId,
         condominio: unidade.condominio,
         torre: unidade.torre,
         totalVagas: unidade._count.vagas,
-        createdAt: unidade.criadoEm.toISOString()
+        criadoEm: unidade.criadoEm,
+        atualizadoEm: unidade.atualizadoEm
       }));
 
       return NextResponse.json(unidadesFormatadas);
@@ -181,22 +175,20 @@ export async function POST(request: NextRequest) {
         andar: novaUnidade.andar,
         tipo: novaUnidade.tipo,
         proprietario: novaUnidade.proprietario,
-        telefone: novaUnidade.telefone,
-        email: novaUnidade.email,
-        observacoes: novaUnidade.observacoes,
         condominioId: novaUnidade.condominioId,
         torreId: novaUnidade.torreId,
         condominio: novaUnidade.condominio,
         torre: novaUnidade.torre,
         totalVagas: novaUnidade._count.vagas,
-        createdAt: novaUnidade.criadoEm.toISOString()
+        criadoEm: novaUnidade.criadoEm,
+        atualizadoEm: novaUnidade.atualizadoEm
       };
 
       return NextResponse.json(unidadeFormatada, { status: 201 });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return NextResponse.json(
-          { error: 'Dados inválidos', details: error.errors },
+          { error: 'Dados inválidos', details: error.issues },
           { status: 400 }
         );
       }

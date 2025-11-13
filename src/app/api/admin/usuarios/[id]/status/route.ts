@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { ehAdministradorMestre } from '@/lib/auth';
+import { authOptions } from '../../../../../../lib/auth';
+import { prisma } from '../../../../../../lib/prisma';
+import { ehAdministradorMestre } from '../../../../../../lib/auth';
 import { z } from 'zod';
 
 const paramsSchema = z.object({
@@ -19,19 +19,19 @@ const bodySchema = z.object({
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { erro: 'Não autorizado' },
         { status: 401 }
       );
     }
 
-    if (!ehAdministradorMestre(session)) {
+    if (!ehAdministradorMestre(session.user as any)) {
       return NextResponse.json(
         { erro: 'Acesso negado. Apenas administradores mestres podem alterar status de usuários.' },
         { status: 403 }
@@ -39,7 +39,7 @@ export async function PATCH(
     }
 
     // Validar parâmetros
-    const { id } = paramsSchema.parse(params);
+    const { id } = paramsSchema.parse(await params);
     const dados = await request.json();
     const { ativo } = bodySchema.parse(dados);
 
@@ -59,7 +59,7 @@ export async function PATCH(
     }
 
     // Não permitir desativar o próprio usuário
-    if (usuario.id === session.user.id && !ativo) {
+    if (usuario.id === (session.user as any).id && !ativo) {
       return NextResponse.json(
         { erro: 'Não é possível desativar seu próprio usuário' },
         { status: 400 }
@@ -126,7 +126,7 @@ export async function PATCH(
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Dados inválidos', detalhes: error.errors },
+        { erro: 'Dados inválidos', detalhes: error.issues },
         { status: 400 }
       );
     }

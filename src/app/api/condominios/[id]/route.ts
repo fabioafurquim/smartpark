@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { atualizarCondominioSchema } from '@/lib/validations';
+import { authOptions } from '../../../../lib/auth';
+import { prisma } from '../../../../lib/prisma';
+import { atualizarCondominioSchema } from '../../../../lib/validations/condominio';
 import { z } from 'zod';
-
-interface RouteParams {
-  params: Promise<{
-    id: string;
-  }>;
-}
 
 // GET /api/condominios/[id] - Buscar condomínio por ID
 export async function GET(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -80,7 +74,7 @@ export async function GET(
 // PUT /api/condominios/[id] - Atualizar condomínio
 export async function PUT(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -106,6 +100,14 @@ export async function PUT(
     // Verificar se o condomínio existe
     const condominioExistente = await prisma.condominio.findUnique({
       where: { id },
+      include: {
+        _count: {
+          select: {
+            torres: true,
+            perfisUsuario: true,
+          },
+        },
+      },
     });
 
     if (!condominioExistente) {
@@ -117,12 +119,41 @@ export async function PUT(
 
     // Verificar permissões
     const usuario = await prisma.usuario.findUnique({
-      where: { id: session.user.id },
+      where: { id: (session.user as any).id },
       include: { perfis: true },
     });
 
+    const isAdminMaster = usuario?.perfis.some(
+      (perfil) => perfil.tipo === 'administrador_master'
+    );
+
+    if (!isAdminMaster) {
+      return NextResponse.json(
+        { error: 'Acesso negado. Apenas administradores master podem excluir condomínios.' },
+        { status: 403 }
+      );
+    }
+
+    // Verificar se há dependências
+    const temDependencias = 
+      condominioExistente._count.torres > 0 ||
+      condominioExistente._count.perfisUsuario > 0;
+
+    if (temDependencias) {
+      return NextResponse.json(
+        { 
+          error: 'Não é possível excluir o condomínio pois existem torres ou usuários associados.',
+          details: {
+            torres: condominioExistente._count.torres,
+            perfisUsuario: condominioExistente._count.perfisUsuario,
+          },
+        },
+        { status: 409 }
+      );
+    }
+
     const isAdmin = usuario?.perfis.some(
-      (perfil) => perfil.tipo === 'ADMINISTRADOR_MASTER' || perfil.tipo === 'ADMINISTRADOR_CONDOMINIO'
+      (perfil) => perfil.tipo === 'administrador_master' || perfil.tipo === 'administrador_condominio'
     );
 
     if (!isAdmin) {
@@ -165,8 +196,7 @@ export async function PUT(
         _count: {
           select: {
             torres: true,
-            usuarios: true,
-            vagas: true,
+            perfisUsuario: true,
           },
         },
       },
@@ -176,7 +206,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Dados inválidos', details: error.errors },
+        { error: 'Dados inválidos', details: error.issues },
         { status: 400 }
       );
     }
@@ -192,7 +222,7 @@ export async function PUT(
 // DELETE /api/condominios/[id] - Excluir condomínio
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -222,8 +252,7 @@ export async function DELETE(
         _count: {
           select: {
             torres: true,
-            usuarios: true,
-            vagas: true,
+            perfisUsuario: true,
           },
         },
       },
@@ -238,12 +267,12 @@ export async function DELETE(
 
     // Verificar permissões
     const usuario = await prisma.usuario.findUnique({
-      where: { id: session.user.id },
+      where: { id: (session.user as any).id },
       include: { perfis: true },
     });
 
     const isAdminMaster = usuario?.perfis.some(
-      (perfil) => perfil.tipo === 'ADMINISTRADOR_MASTER'
+      (perfil) => perfil.tipo === 'administrador_master'
     );
 
     if (!isAdminMaster) {
@@ -256,17 +285,15 @@ export async function DELETE(
     // Verificar se há dependências
     const temDependencias = 
       condominioExistente._count.torres > 0 ||
-      condominioExistente._count.perfisUsuario > 0 ||
-      condominioExistente._count.solicitacoesCadastro > 0;
+      condominioExistente._count.perfisUsuario > 0;
 
     if (temDependencias) {
       return NextResponse.json(
         { 
-          error: 'Não é possível excluir o condomínio pois existem torres, usuários ou solicitações associadas.',
+          error: 'Não é possível excluir o condomínio pois existem torres ou usuários associados.',
           details: {
             torres: condominioExistente._count.torres,
             perfisUsuario: condominioExistente._count.perfisUsuario,
-            solicitacoesCadastro: condominioExistente._count.solicitacoesCadastro,
           },
         },
         { status: 409 }

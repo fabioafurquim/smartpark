@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { criarCondominioSchema } from '@/lib/validations';
+import { prisma } from '../../../lib/prisma';
+import { criarCondominioSchema } from '../../../lib/validations/condominio';
 import { z } from 'zod';
 import { getToken } from 'next-auth/jwt';
-import { UsuarioSessao } from '@/types';
-import { ehAdministradorMestre, obterCondominiosUsuario } from '@/lib/auth';
+import { UsuarioSessao } from '../../../types';
+import { ehAdministradorMestre, obterCondominiosUsuario } from '../../../lib/auth';
 
 // GET /api/condominios - Listar condomínios
 export async function GET(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const usuario: UsuarioSessao = {
       id: token.sub!,
-      name: token.name || '',
+      nome: token.name || '',
       email: token.email || '',
       perfis: token.perfis as any[]
     };
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     const usuario: UsuarioSessao = {
       id: token.sub!,
-      name: token.name || '',
+      nome: token.name || '',
       email: token.email || '',
       perfis: token.perfis as any[]
     };
@@ -187,9 +187,9 @@ export async function POST(request: NextRequest) {
       if (error instanceof z.ZodError) {
         return NextResponse.json(
           { 
-            error: 'Dados inválidos',
-            details: error.errors
-          },
+          error: 'Dados inválidos',
+          details: error.issues
+        },
           { status: 400 }
         );
       }

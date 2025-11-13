@@ -2,25 +2,25 @@ import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 
-export interface ColunaTabela {
+export interface ColunaTabela<T = Record<string, unknown>> {
   chave: string;
   titulo: string;
   ordenavel?: boolean;
   largura?: string;
   alinhamento?: 'left' | 'center' | 'right';
-  renderizar?: (valor: any, linha: any) => ReactNode;
+  renderizar?: (valor: unknown, linha: T) => ReactNode;
 }
 
-export interface PropsTabela {
-  colunas: ColunaTabela[];
-  dados: any[];
+export interface PropsTabela<T = Record<string, unknown>> {
+  colunas: ColunaTabela<T>[];
+  dados: T[];
   carregando?: boolean;
   ordenacao?: {
     campo: string;
     direcao: 'asc' | 'desc';
   };
   aoOrdenar?: (campo: string) => void;
-  aoClicarLinha?: (linha: any) => void;
+  aoClicarLinha?: (linha: T) => void;
   className?: string;
   mensagemVazia?: string;
 }
@@ -143,7 +143,7 @@ export function Table({
                   onClick={() => aoClicarLinha?.(linha)}
                 >
                   {colunas.map((coluna) => {
-                    const valor = linha[coluna.chave];
+                    const valor = (linha as Record<string, any>)[coluna.chave];
                     const conteudo = coluna.renderizar 
                       ? coluna.renderizar(valor, linha)
                       : valor;

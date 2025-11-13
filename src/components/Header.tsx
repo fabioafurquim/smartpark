@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { 
   Menu,
-  Bell,
-  User,
+  Bell, 
+  User, 
   Settings,
-  LogOut,
+  LogOut, 
   ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '../../../../../../../../../lib/auth';
+import { prisma } from '../../../../../../../../../lib/prisma';
 import { z } from 'zod';
 
 // Schema de validação para criação de vaga
-const createVagaSchema = z.object({
-  numero: z.string().min(1, 'Número da vaga é obrigatório'),
-  tipo: z.enum(['carro', 'moto', 'bicicleta', 'deficiente'], {
-    errorMap: () => ({ message: 'Tipo deve ser: carro, moto, bicicleta ou deficiente' })
-  }),
-  localizacao: z.string().optional(),
+const vagaSchema = z.object({
+  numero: z.string().min(1, 'Número é obrigatório'),
+  tipo: z.enum(['COBERTA', 'DESCOBERTA', 'DEFICIENTE', 'IDOSO', 'VISITANTE']),
   observacoes: z.string().optional()
 });
 
@@ -25,7 +22,7 @@ export async function GET(
   try {
     // Verificar autenticação
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Não autorizado' },
         { status: 401 }
@@ -55,7 +52,7 @@ export async function GET(
         ativo: true,
         perfisUsuario: {
           some: {
-            usuarioId: session.user.id,
+            usuarioId: (session.user as any).id,
             ativo: true
           }
         }
@@ -136,7 +133,7 @@ export async function POST(
   try {
     // Verificar autenticação
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Não autorizado' },
         { status: 401 }
@@ -166,7 +163,7 @@ export async function POST(
         ativo: true,
         perfisUsuario: {
           some: {
-            usuarioId: session.user.id,
+            usuarioId: (session.user as any).id,
             tipo: {
               in: ['administrador_mestre', 'administrador_condominio', 'sindico']
             },
@@ -203,7 +200,7 @@ export async function POST(
 
     // Validar dados da requisição
     const body = await request.json();
-    const validation = createVagaSchema.safeParse(body);
+    const validation = vagaSchema.safeParse(body);
     
     if (!validation.success) {
       return NextResponse.json(
@@ -235,8 +232,10 @@ export async function POST(
     // Criar a vaga
     const novaVaga = await prisma.vaga.create({
       data: {
-        ...dadosVaga,
-        unidadeId: unidadeId
+        numero: dadosVaga.numero,
+        tipo: dadosVaga.tipo,
+        unidadeId: unidadeId,
+        condominioId: condominioId
       }
     });
 

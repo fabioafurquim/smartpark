@@ -17,7 +17,7 @@ interface LayoutProps {
  * Inclui sidebar, header e área de conteúdo
  */
 export function Layout({ children, titulo, subtitulo }: LayoutProps) {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const [sidebarAberta, setSidebarAberta] = useState(true);
 
   // Se não estiver autenticado, renderizar apenas o conteúdo

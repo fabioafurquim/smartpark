@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { TipoPerfilUsuario, StatusSolicitacao, TipoVaga } from '@/types';
 
 // Schema base para validação de email
 const emailSchema = z.string()
@@ -40,26 +39,7 @@ export const loginSchema = z.object({
   senha: z.string().min(1, 'Senha é obrigatória'),
 });
 
-// Schemas para Condominio
-export const criarCondominioSchema = z.object({
-  nome: z.string()
-    .min(2, 'Nome deve ter pelo menos 2 caracteres')
-    .max(100, 'Nome deve ter no máximo 100 caracteres'),
-  endereco: z.string()
-    .min(10, 'Endereço deve ter pelo menos 10 caracteres')
-    .max(200, 'Endereço deve ter no máximo 200 caracteres'),
-  telefone: telefoneSchema,
-  email: emailSchema.optional(),
-});
-
-export const atualizarCondominioSchema = z.object({
-  nome: z.string().min(2).max(100).optional(),
-  endereco: z.string().min(10).max(200).optional(),
-  telefone: telefoneSchema,
-  email: emailSchema.optional(),
-  logoUrl: z.string().url('URL inválida').optional(),
-  ativo: z.boolean().optional(),
-});
+// Schemas para Condominio - Movidos para src/lib/validations/condominio.ts
 
 // Schemas para Torre
 export const criarTorreSchema = z.object({
@@ -94,31 +74,26 @@ export const criarVagaSchema = z.object({
   numero: z.string()
     .min(1, 'Número é obrigatório')
     .max(10, 'Número deve ter no máximo 10 caracteres'),
-  tipo: z.enum(['comum', 'deficiente', 'idoso'] as const, {
-    errorMap: () => ({ message: 'Tipo de vaga inválido' }),
-  }),
+  tipo: z.enum(['comum', 'deficiente', 'idoso']),
   unidadeId: z.string().uuid('ID da unidade inválido'),
 });
 
 export const atualizarVagaSchema = z.object({
   numero: z.string().min(1).max(10).optional(),
-  tipo: z.enum(['comum', 'deficiente', 'idoso'] as const).optional(),
-  proprietarioId: z.string().uuid().optional(),
+  tipo: z.enum(['comum', 'deficiente', 'idoso']).optional(),
 });
 
 // Schemas para PerfilUsuario
 export const criarPerfilUsuarioSchema = z.object({
   usuarioId: z.string().uuid('ID do usuário inválido'),
   condominioId: z.string().uuid('ID do condomínio inválido'),
-  tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador'] as const, {
-    errorMap: () => ({ message: 'Tipo de perfil inválido' }),
-  }),
-  permissoes: z.record(z.boolean()).optional(),
+  tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador']),
+  permissoes: z.record(z.string(), z.boolean()).optional(),
 });
 
 export const atualizarPerfilUsuarioSchema = z.object({
-  tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador'] as const).optional(),
-  permissoes: z.record(z.boolean()).optional(),
+  tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador']).optional(),
+  permissoes: z.record(z.string(), z.boolean()).optional(),
   ativo: z.boolean().optional(),
 });
 
@@ -132,9 +107,7 @@ export const criarSolicitacaoCadastroSchema = z.object({
 });
 
 export const processarSolicitacaoSchema = z.object({
-  status: z.enum(['aprovado', 'rejeitado'] as const, {
-    errorMap: () => ({ message: 'Status inválido' }),
-  }),
+  status: z.enum(['aprovado', 'rejeitado']),
   observacoes: z.string().max(500, 'Observações devem ter no máximo 500 caracteres').optional(),
 });
 
@@ -145,9 +118,7 @@ export const configuracaoInicialSchema = z.object({
     .min(2, 'Nome da empresa deve ter pelo menos 2 caracteres')
     .max(100, 'Nome da empresa deve ter no máximo 100 caracteres'),
   emailContato: emailSchema,
-  telefoneContato: telefoneSchema.refine(val => val && val.length > 0, {
-    message: 'Telefone de contato é obrigatório'
-  }),
+  telefoneContato: telefoneSchema,
   
   // Dados do administrador
   nomeAdmin: nomeSchema,
@@ -192,15 +163,15 @@ export const notificacaoEmailSchema = z.object({
   assunto: z.string().min(1, 'Assunto é obrigatório').max(200, 'Assunto deve ter no máximo 200 caracteres'),
   conteudo: z.string().min(1, 'Conteúdo é obrigatório'),
   template: z.string().optional(),
-  dados: z.record(z.any()).optional(),
+  dados: z.record(z.string(), z.any()).optional(),
 });
 
 // Tipos inferidos dos schemas
 export type CriarUsuarioInput = z.infer<typeof criarUsuarioSchema>;
 export type AtualizarUsuarioInput = z.infer<typeof atualizarUsuarioSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
-export type CriarCondominioInput = z.infer<typeof criarCondominioSchema>;
-export type AtualizarCondominioInput = z.infer<typeof atualizarCondominioSchema>;
+export type CriarCondominioInput = z.infer<typeof import('./validations/condominio').criarCondominioSchema>;
+export type AtualizarCondominioInput = z.infer<typeof import('./validations/condominio').atualizarCondominioSchema>;
 export type CriarTorreInput = z.infer<typeof criarTorreSchema>;
 export type AtualizarTorreInput = z.infer<typeof atualizarTorreSchema>;
 export type CriarUnidadeInput = z.infer<typeof criarUnidadeSchema>;

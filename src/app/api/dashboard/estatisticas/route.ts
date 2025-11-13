@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import type { EstatisticasDashboard } from '@/types';
+import { authOptions } from '../../../../lib/auth';
+import { prisma } from '../../../../lib/prisma';
+import type { EstatisticasDashboard } from '../../../../types';
 
 /**
  * GET /api/dashboard/estatisticas
@@ -12,12 +12,14 @@ export async function GET(request: NextRequest) {
   try {
     // Verificar autenticação
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
-    }
+    if (!session?.user) {
+    return NextResponse.json(
+      { erro: 'Não autorizado' },
+      { status: 401 }
+    );
+  }
+
+  const userId = (session.user as any).id;
 
     // Buscar estatísticas do banco de dados
     const [totalCondominios, usuariosAtivos, totalVagas, vagasOcupadas] = await Promise.all([

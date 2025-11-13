@@ -3,7 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { prisma } from './prisma';
 import { compare } from 'bcryptjs';
-import { UsuarioSessao } from '@/types';
+import { UsuarioSessao } from '../types';
 
 /**
  * Configuração do NextAuth.js para autenticação
@@ -47,6 +47,10 @@ export const authOptions: NextAuthOptions = {
           }
 
           // Verificar senha usando bcrypt
+          if (!usuario.senha) {
+            return null;
+          }
+          
           const senhaValida = await compare(credentials.senha, usuario.senha);
           if (!senhaValida) {
             return null;
@@ -61,7 +65,10 @@ export const authOptions: NextAuthOptions = {
               id: perfil.id,
               tipo: perfil.tipo,
               condominioId: perfil.condominioId,
-              condominio: perfil.condominio,
+              condominio: perfil.condominio ? {
+                id: perfil.condominio.id,
+                nome: perfil.condominio.nome
+              } : null,
             })),
           };
         } catch (error) {
@@ -78,14 +85,14 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.perfis = user.perfis;
+        token.perfis = (user as any).perfis;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.sub!;
-        (session.user as any).perfis = token.perfis;
+        (session.user as any).id = token.sub!;
+        (session.user as UsuarioSessao).perfis = token.perfis as UsuarioSessao['perfis'] || [];
       }
       return session;
     },
@@ -159,11 +166,18 @@ export function ehMorador(usuario: UsuarioSessao, condominioId: string): boolean
 }
 
 /**
- * Função para obter os condomínios do usuário
+ * Função para obter condomínios do usuário
  * @param usuario - Dados do usuário da sessão
- * @returns Array de condomínios
+ * @returns Array de condomínios ou Promise<Array> para administrador mestre
  */
 export function obterCondominiosUsuario(usuario: UsuarioSessao) {
+  // Administrador mestre tem acesso a todos os condomínios
+  if (ehAdministradorMestre(usuario)) {
+    // Para administrador mestre, retornamos uma função que busca todos os condomínios
+    // Isso será tratado de forma especial na API
+    return 'TODOS_CONDOMINIOS' as any;
+  }
+  
   return usuario.perfis.map(perfil => perfil.condominio);
 }
 
@@ -191,6 +205,10 @@ export function temPermissao(
 
     // Definir permissões por tipo de perfil
     switch (perfil.tipo) {
+      case 'administrador_mestre':
+        // Administrador mestre tem todas as permissões
+        return true;
+        
       case 'administrador_condominio':
         return [
           'gerenciarUsuarios',

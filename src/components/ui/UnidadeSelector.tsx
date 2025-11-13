@@ -48,6 +48,38 @@ export default function UnidadeSelector({
 
   // Buscar unidades quando o condomínio mudar
   useEffect(() => {
+    const fetchUnidades = async () => {
+      if (!condominioId) return;
+      
+      console.log('🔍 DEBUG UnidadeSelector - Buscando unidades para condominioId:', condominioId);
+      setIsLoading(true);
+      try {
+        const url = `/api/unidades?condominioId=${condominioId}`;
+        console.log('🔍 DEBUG UnidadeSelector - URL da requisição:', url);
+        
+        const response = await fetch(url);
+        console.log('🔍 DEBUG UnidadeSelector - Status da resposta:', response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('🔍 DEBUG UnidadeSelector - Dados recebidos:', data);
+          console.log('🔍 DEBUG UnidadeSelector - Número de unidades:', data.length);
+          
+          setUnidades(data || []);
+          setPage(1);
+          setHasMore((data || []).length >= ITEMS_PER_PAGE);
+        } else {
+          console.error('🔍 DEBUG UnidadeSelector - Erro ao buscar unidades:', response.statusText);
+          setUnidades([]);
+        }
+      } catch (error) {
+        console.error('🔍 DEBUG UnidadeSelector - Erro na requisição:', error);
+        setUnidades([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     if (condominioId) {
       fetchUnidades();
     } else {
@@ -55,7 +87,7 @@ export default function UnidadeSelector({
       setFilteredUnidades([]);
       setSelectedUnidade(null);
     }
-  }, [condominioId]);
+  }, [condominioId, ITEMS_PER_PAGE]);
 
   // Filtrar unidades baseado no termo de busca
   useEffect(() => {

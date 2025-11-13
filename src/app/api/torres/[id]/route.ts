@@ -1,29 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '../../../../lib/auth';
+import { prisma } from '../../../../lib/prisma';
 import { z } from 'zod';
 
-// Schema de validação para atualização de torre/bloco
+// Schema de validação para atualização de torre
 const updateTorreSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório').optional(),
-  tipo: z.enum(['TORRE', 'BLOCO'], {
-    errorMap: () => ({ message: 'Tipo deve ser TORRE ou BLOCO' })
-  }).optional()
+  tipo: z.enum(['residencial', 'comercial', 'misto']).optional(),
+  descricao: z.string().optional()
 });
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 /**
- * GET /api/torres/[id] - Busca torre/bloco específica
+ * GET /api/torres/[id] - Busca torre específica
  */
 export async function GET(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -31,8 +24,9 @@ export async function GET(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     const torre = await prisma.torre.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         condominio: {
           select: {
@@ -44,12 +38,10 @@ export async function GET(
           select: {
             id: true,
             numero: true,
-            andar: true,
-            tipo: true
+            proprietario: true,
+            contato: true
           },
-          orderBy: {
-            numero: 'asc'
-          }
+          orderBy: { numero: 'asc' }
         },
         _count: {
           select: {
@@ -61,7 +53,7 @@ export async function GET(
 
     if (!torre) {
       return NextResponse.json(
-        { error: 'Torre/bloco não encontrada' },
+        { error: 'Torre não encontrada' },
         { status: 404 }
       );
     }
@@ -70,6 +62,7 @@ export async function GET(
       id: torre.id,
       nome: torre.nome,
       tipo: torre.tipo,
+      descricao: torre.descricao,
       condominioId: torre.condominioId,
       condominio: torre.condominio,
       unidades: torre.unidades,
@@ -93,7 +86,7 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -101,12 +94,13 @@ export async function PUT(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const validatedData = updateTorreSchema.parse(body);
 
     // Verificar se a torre existe
     const torreExistente = await prisma.torre.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!torreExistente) {
@@ -122,7 +116,7 @@ export async function PUT(
         where: {
           nome: validatedData.nome,
           condominioId: torreExistente.condominioId,
-          id: { not: params.id }
+          id: { not: id }
         }
       });
 
@@ -135,7 +129,7 @@ export async function PUT(
     }
 
     const torreAtualizada = await prisma.torre.update({
-      where: { id: params.id },
+      where: { id },
       data: validatedData,
       include: {
         condominio: {
@@ -167,7 +161,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Dados inválidos', details: error.errors },
+        { error: 'Dados inválidos', details: error.issues },
         { status: 400 }
       );
     }
@@ -185,7 +179,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -193,9 +187,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     // Verificar se a torre existe
     const torre = await prisma.torre.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         _count: {
           select: {
@@ -224,7 +219,7 @@ export async function DELETE(
     }
 
     await prisma.torre.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json(

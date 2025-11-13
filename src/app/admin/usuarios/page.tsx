@@ -105,38 +105,49 @@ export default function AdminUsuariosPage() {
     {
       chave: 'nome',
       titulo: 'Nome',
-      renderizar: (usuario: UsuarioCompleto) => (
-        <div>
-          <div className="font-medium text-gray-900">{usuario.nome}</div>
-          <div className="text-sm text-gray-500">{usuario.email}</div>
-        </div>
-      ),
+      renderizar: (usuario: UsuarioCompleto) => {
+        if (!usuario) return null;
+        return (
+          <div>
+            <div className="font-medium text-gray-900">{usuario.nome}</div>
+            <div className="text-sm text-gray-500">{usuario.email}</div>
+          </div>
+        );
+      },
     },
     {
       chave: 'perfis',
       titulo: 'Perfis',
-      renderizar: (usuario: UsuarioCompleto) => (
-        <div className="space-y-1">
-          {usuario.perfis.map((perfil, index) => (
-            <div key={index} className="text-sm">
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                {perfil.tipo}
-              </span>
-              {perfil.condominio && (
-                <span className="ml-2 text-gray-500">
-                  {perfil.condominio.nome}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      ),
+      renderizar: (usuario: UsuarioCompleto) => {
+        if (!usuario) return null;
+        return (
+          <div className="space-y-1">
+            {usuario.perfis && usuario.perfis.length > 0 ? (
+              usuario.perfis.map((perfil, index) => (
+                <div key={index} className="text-sm">
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {perfil.tipo.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </span>
+                  {perfil.condominio && (
+                    <span className="ml-2 text-gray-500">
+                      {perfil.condominio.nome}
+                    </span>
+                  )}
+                </div>
+              ))
+            ) : (
+              <span className="text-sm text-gray-500">Nenhum perfil</span>
+            )}
+          </div>
+        );
+      },
     },
     {
       chave: 'ativo',
       titulo: 'Status',
       renderizar: (usuario: UsuarioCompleto) => {
-        const ativo = usuario.perfis.some(p => p.ativo);
+        if (!usuario) return null;
+        const ativo = usuario.perfis && usuario.perfis.length > 0 ? usuario.perfis.some(p => p.ativo) : false;
         return (
           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
             ativo 
@@ -152,7 +163,8 @@ export default function AdminUsuariosPage() {
       chave: 'acoes',
       titulo: 'Ações',
       renderizar: (usuario: UsuarioCompleto) => {
-        const ativo = usuario.perfis.some(p => p.ativo);
+        if (!usuario) return null;
+        const ativo = usuario.perfis?.some(p => p.ativo) ?? false;
         return (
           <div className="flex items-center space-x-2">
             <Button
@@ -193,10 +205,10 @@ export default function AdminUsuariosPage() {
 
   const tiposUsuario = [
     { valor: '', label: 'Todos os tipos' },
-    { valor: 'ADMINISTRADOR_MESTRE', label: 'Administrador Mestre' },
-    { valor: 'ADMINISTRADOR_CONDOMINIO', label: 'Administrador Condomínio' },
-    { valor: 'SINDICO', label: 'Síndico' },
-    { valor: 'MORADOR', label: 'Morador' },
+    { valor: 'administrador_mestre', label: 'Administrador Mestre' },
+    { valor: 'administrador_condominio', label: 'Administrador Condomínio' },
+    { valor: 'sindico', label: 'Síndico' },
+    { valor: 'morador', label: 'Morador' },
   ];
 
   const statusOptions = [
@@ -232,21 +244,21 @@ export default function AdminUsuariosPage() {
               label="Buscar usuários"
               placeholder="Nome ou email..."
               value={filtros.busca}
-              onChange={(e) => setFiltros(prev => ({ ...prev, busca: e.target.value }))}
-              icon={Search}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFiltros(prev => ({ ...prev, busca: e.target.value }))}
+              startIcon={<Search className="w-4 h-4" />}
             />
             
             <Select
               label="Tipo de usuário"
-              value={filtros.tipo}
-              onChange={(valor) => setFiltros(prev => ({ ...prev, tipo: valor }))}
+              valor={filtros.tipo}
+              aoMudar={(valor: string | number) => setFiltros(prev => ({ ...prev, tipo: valor as string }))}
               opcoes={tiposUsuario}
             />
             
             <Select
               label="Status"
-              value={filtros.ativo}
-              onChange={(valor) => setFiltros(prev => ({ ...prev, ativo: valor }))}
+              valor={filtros.ativo}
+              aoMudar={(valor: string | number) => setFiltros(prev => ({ ...prev, ativo: valor as string }))}
               opcoes={statusOptions}
             />
           </div>
@@ -255,8 +267,8 @@ export default function AdminUsuariosPage() {
         {/* Tabela de Usuários */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <Table
-            colunas={colunas}
-            dados={usuarios}
+            colunas={colunas as any}
+            dados={usuarios as unknown as Record<string, unknown>[]}
             carregando={carregando}
             mensagemVazia="Nenhum usuário encontrado"
           />
@@ -265,7 +277,7 @@ export default function AdminUsuariosPage() {
         {/* Modal de Detalhes */}
         <Modal
           aberto={modalAberto}
-          onFechar={() => {
+          aoFechar={() => {
             setModalAberto(false);
             setUsuarioSelecionado(null);
           }}

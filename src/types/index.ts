@@ -121,7 +121,7 @@ export interface FormularioUsuario {
 export interface ConfiguracaoInicialForm {
   nomeEmpresa: string;
   emailContato: string;
-  telefoneContato: string;
+  telefoneContato?: string;
   nomeAdmin: string;
   emailAdmin: string;
   senhaAdmin: string;
@@ -161,7 +161,7 @@ export interface FormularioSolicitacaoCadastro {
 }
 
 // Tipos para API responses
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   sucesso: boolean;
   dados?: T;
   mensagem?: string;
@@ -199,15 +199,21 @@ export interface NotificacaoEmail {
   assunto: string;
   conteudo: string;
   template?: string;
-  dados?: Record<string, any>;
+  dados?: Record<string, unknown>;
 }
 
 // Tipos para dashboard
 export interface EstatisticasDashboard {
   totalCondominios: number;
-  totalUsuarios: number;
-  solicitacoesPendentes: number;
+  totalUsuarios?: number;
   usuariosAtivos: number;
+  totalVagas: number;
+  vagasOcupadas: number;
+  vagasDisponiveis: number;
+  ocupacaoAtual: number;
+  solicitacoesPendentes: number;
+  alertasAtivos: number;
+  manutencoesProgramadas: number;
 }
 
 // Tipos para permissões
@@ -258,15 +264,15 @@ export interface PropsModal {
 }
 
 // Tipos para tabelas
-export interface ColunaTabela<T = any> {
+export interface ColunaTabela<T = Record<string, unknown>> {
   chave: keyof T | string;
   rotulo: string;
-  renderizar?: (valor: any, item: T) => React.ReactNode;
+  renderizar?: (valor: unknown, item: T) => React.ReactNode;
   ordenavel?: boolean;
   largura?: string;
 }
 
-export interface TabelaProps<T = any> {
+export interface TabelaProps<T = Record<string, unknown>> {
   dados: T[];
   colunas: ColunaTabela<T>[];
   carregando?: boolean;

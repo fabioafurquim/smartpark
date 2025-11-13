@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Building2, Plus, Search, Edit, Trash2 } from 'lucide-react';
 import TorreModal from '@/components/modals/TorreModal';
+import { Layout } from '@/components/Layout';
 
 interface Torre {
   id: string;
@@ -70,13 +71,15 @@ export default function TorresPage() {
     if (!selectedCondominio) return;
     
     setIsLoading(true);
+    setError(''); // Limpar erro anterior
     try {
       const response = await fetch(`/api/torres?condominioId=${selectedCondominio}`);
       if (response.ok) {
         const data = await response.json();
         setTorres(data);
       } else {
-        setError('Erro ao carregar torres');
+        const errorData = await response.json();
+        setError(errorData.erro || errorData.error || 'Erro ao carregar torres');
       }
     } catch (error) {
       console.error('Erro ao carregar torres:', error);
@@ -91,6 +94,13 @@ export default function TorresPage() {
       const url = editingTorre ? `/api/torres/${editingTorre.id}` : '/api/torres';
       const method = editingTorre ? 'PUT' : 'POST';
       
+      console.log('🔍 DEBUG - Enviando dados para API:', {
+        url,
+        method,
+        formData,
+        selectedCondominio
+      });
+      
       const response = await fetch(url, {
         method,
         headers: {
@@ -99,11 +109,22 @@ export default function TorresPage() {
         body: JSON.stringify(formData),
       });
 
+      console.log('🔍 DEBUG - Resposta da API:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
       if (response.ok) {
         await fetchTorres();
         setError('');
       } else {
         const errorData = await response.json();
+        console.error('🔍 DEBUG - Erro detalhado da API:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
         throw new Error(errorData.error || 'Erro ao salvar torre');
       }
     } catch (error) {
@@ -156,18 +177,19 @@ export default function TorresPage() {
   );
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Torres e Blocos</h1>
-        <p className="text-gray-600">Gerencie as torres e blocos do condomínio</p>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+    <Layout>
+      <div className="p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Torres e Blocos</h1>
+          <p className="text-gray-600">Gerencie as torres e blocos do condomínio</p>
         </div>
-      )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
 
       {/* Filtros */}
       <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
@@ -338,6 +360,7 @@ export default function TorresPage() {
         condominios={condominios}
         selectedCondominioId={selectedCondominio}
       />
-    </div>
+      </div>
+    </Layout>
   );
 }

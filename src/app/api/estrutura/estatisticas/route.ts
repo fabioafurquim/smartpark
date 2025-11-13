@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '../../../../lib/auth';
+import { prisma } from '../../../../lib/prisma';
 
 /**
  * GET /api/estrutura/estatisticas - Busca estatísticas da estrutura
@@ -30,11 +30,15 @@ export async function GET(request: NextRequest) {
       // Total de vagas
       prisma.vaga.count({ where }),
       
-      // Vagas ocupadas
+      // Vagas ocupadas (baseado em reservas ativas)
       prisma.vaga.count({
         where: {
           ...where,
-          status: 'OCUPADA'
+          reservas: {
+            some: {
+              status: 'ATIVA'
+            }
+          }
         }
       })
     ]);
@@ -59,9 +63,9 @@ export async function GET(request: NextRequest) {
         }
       }),
       
-      // Estatísticas de vagas por tipo e status
+      // Estatísticas de vagas por tipo
       prisma.vaga.groupBy({
-        by: ['tipo', 'status'],
+        by: ['tipo'],
         where,
         _count: {
           id: true
@@ -83,7 +87,6 @@ export async function GET(request: NextRequest) {
 
     // Formatear estatísticas de vagas
     const vagasPorTipo = {} as Record<string, number>;
-    const vagasPorStatus = {} as Record<string, number>;
     
     estatisticasVagas.forEach(item => {
       // Por tipo
@@ -91,12 +94,6 @@ export async function GET(request: NextRequest) {
         vagasPorTipo[item.tipo] = 0;
       }
       vagasPorTipo[item.tipo] += item._count.id;
-      
-      // Por status
-      if (!vagasPorStatus[item.status]) {
-        vagasPorStatus[item.status] = 0;
-      }
-      vagasPorStatus[item.status] += item._count.id;
     });
 
     // Calcular percentuais
@@ -142,12 +139,6 @@ export async function GET(request: NextRequest) {
           MOTO: vagasPorTipo.MOTO || 0,
           DEFICIENTE: vagasPorTipo.DEFICIENTE || 0,
           IDOSO: vagasPorTipo.IDOSO || 0
-        },
-        porStatus: {
-          LIVRE: vagasPorStatus.LIVRE || 0,
-          OCUPADA: vagasPorStatus.OCUPADA || 0,
-          RESERVADA: vagasPorStatus.RESERVADA || 0,
-          MANUTENCAO: vagasPorStatus.MANUTENCAO || 0
         }
       }
     };

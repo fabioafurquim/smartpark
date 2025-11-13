@@ -1,33 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '../../../../lib/auth';
+import { prisma } from '../../../../lib/prisma';
 import { z } from 'zod';
 
 // Schema de validação para atualização de vaga
 const updateVagaSchema = z.object({
   numero: z.string().min(1, 'Número é obrigatório').optional(),
-  tipo: z.enum(['CARRO', 'MOTO', 'DEFICIENTE', 'IDOSO'], {
-    errorMap: () => ({ message: 'Tipo deve ser CARRO, MOTO, DEFICIENTE ou IDOSO' })
-  }).optional(),
-  status: z.enum(['LIVRE', 'OCUPADA', 'RESERVADA', 'MANUTENCAO'], {
-    errorMap: () => ({ message: 'Status deve ser LIVRE, OCUPADA, RESERVADA ou MANUTENCAO' })
-  }).optional(),
+  tipo: z.enum(['comum', 'deficiente', 'idoso']).optional(),
   observacoes: z.string().optional()
 });
-
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
 
 /**
  * GET /api/vagas/[id] - Busca vaga específica
  */
 export async function GET(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -35,8 +24,9 @@ export async function GET(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     const vaga = await prisma.vaga.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         condominio: {
           select: {
@@ -49,8 +39,7 @@ export async function GET(
             id: true,
             numero: true,
             proprietario: true,
-            telefone: true,
-            email: true,
+            contato: true,
             torre: {
               select: {
                 id: true,
@@ -74,14 +63,12 @@ export async function GET(
       id: vaga.id,
       numero: vaga.numero,
       tipo: vaga.tipo,
-      status: vaga.status,
-      observacoes: vaga.observacoes,
       condominioId: vaga.condominioId,
       unidadeId: vaga.unidadeId,
       condominio: vaga.condominio,
       unidade: vaga.unidade,
-      createdAt: vaga.createdAt.toISOString(),
-      updatedAt: vaga.updatedAt.toISOString()
+      createdAt: vaga.criadoEm.toISOString(),
+      updatedAt: vaga.atualizadoEm.toISOString()
     };
 
     return NextResponse.json(vagaFormatada);
@@ -99,7 +86,7 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -107,12 +94,13 @@ export async function PUT(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const validatedData = updateVagaSchema.parse(body);
 
     // Verificar se a vaga existe
     const vagaExistente = await prisma.vaga.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!vagaExistente) {
@@ -128,7 +116,7 @@ export async function PUT(
         where: {
           numero: validatedData.numero,
           condominioId: vagaExistente.condominioId,
-          id: { not: params.id }
+          id: { not: id }
         }
       });
 
@@ -141,7 +129,7 @@ export async function PUT(
     }
 
     const vagaAtualizada = await prisma.vaga.update({
-      where: { id: params.id },
+      where: { id },
       data: validatedData,
       include: {
         condominio: {
@@ -155,6 +143,7 @@ export async function PUT(
             id: true,
             numero: true,
             proprietario: true,
+            contato: true,
             torre: {
               select: {
                 id: true,
@@ -171,21 +160,17 @@ export async function PUT(
       id: vagaAtualizada.id,
       numero: vagaAtualizada.numero,
       tipo: vagaAtualizada.tipo,
-      status: vagaAtualizada.status,
-      observacoes: vagaAtualizada.observacoes,
       condominioId: vagaAtualizada.condominioId,
       unidadeId: vagaAtualizada.unidadeId,
-      condominio: vagaAtualizada.condominio,
-      unidade: vagaAtualizada.unidade,
-      createdAt: vagaAtualizada.createdAt.toISOString(),
-      updatedAt: vagaAtualizada.updatedAt.toISOString()
+      createdAt: vagaAtualizada.criadoEm.toISOString(),
+      updatedAt: vagaAtualizada.atualizadoEm.toISOString()
     };
 
     return NextResponse.json(vagaFormatada);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Dados inválidos', details: error.errors },
+        { error: 'Dados inválidos', details: error.issues },
         { status: 400 }
       );
     }
@@ -203,7 +188,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -211,9 +196,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const { id } = await params;
+    
     // Verificar se a vaga existe
     const vaga = await prisma.vaga.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!vaga) {
@@ -223,19 +210,28 @@ export async function DELETE(
       );
     }
 
-    // Verificar se a vaga está ocupada ou reservada
-    if (vaga.status === 'OCUPADA' || vaga.status === 'RESERVADA') {
+    // Verificar se há reservas ativas para esta vaga
+    const reservasAtivas = await prisma.reserva.count({
+      where: {
+        vagaId: id,
+        status: {
+          in: ['ATIVA', 'CONFIRMADA']
+        }
+      }
+    });
+
+    if (reservasAtivas > 0) {
       return NextResponse.json(
         { 
-          error: `Não é possível excluir vaga com status ${vaga.status}`,
-          details: 'Altere o status da vaga para LIVRE antes de excluí-la' 
+          error: 'Não é possível excluir vaga com reservas ativas',
+          details: 'Cancele ou finalize as reservas antes de excluir a vaga' 
         },
         { status: 400 }
       );
     }
 
     await prisma.vaga.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json(

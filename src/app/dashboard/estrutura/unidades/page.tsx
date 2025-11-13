@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Home, Plus, Search, Edit, Trash2, Building2 } from 'lucide-react';
 import UnidadeModal from '@/components/modals/UnidadeModal';
+import { Layout } from '@/components/Layout';
 
 interface Unidade {
   id: string;
@@ -219,7 +220,8 @@ export default function UnidadesPage() {
   };
 
   return (
-    <div className="p-6">
+    <Layout>
+      <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Unidades</h1>
         <p className="text-gray-600">Gerencie as unidades do condomínio</p>
@@ -436,6 +438,7 @@ export default function UnidadesPage() {
         condominios={condominios}
         selectedCondominioId={selectedCondominio}
       />
-    </div>
+      </div>
+    </Layout>
   );
 }

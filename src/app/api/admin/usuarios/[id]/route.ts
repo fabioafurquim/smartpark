@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { ehAdministradorMestre } from '@/lib/auth';
+import { authOptions } from '../../../../../lib/auth';
+import { prisma } from '../../../../../lib/prisma';
+import { ehAdministradorMestre } from '../../../../../lib/auth';
 import { z } from 'zod';
 
 const paramsSchema = z.object({
@@ -15,19 +15,19 @@ const paramsSchema = z.object({
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { erro: 'Não autorizado' },
         { status: 401 }
       );
     }
 
-    if (!ehAdministradorMestre(session)) {
+    if (!ehAdministradorMestre(session.user as any)) {
       return NextResponse.json(
         { erro: 'Acesso negado. Apenas administradores mestres podem acessar esta funcionalidade.' },
         { status: 403 }
@@ -35,7 +35,7 @@ export async function GET(
     }
 
     // Validar parâmetros
-    const { id } = paramsSchema.parse(params);
+    const { id } = paramsSchema.parse(await params);
 
     // Buscar usuário
     const usuario = await prisma.usuario.findUnique({
@@ -67,7 +67,7 @@ export async function GET(
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Parâmetros inválidos', detalhes: error.errors },
+        { erro: 'Parâmetros inválidos', detalhes: error.issues },
         { status: 400 }
       );
     }
@@ -85,19 +85,19 @@ export async function GET(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { erro: 'Não autorizado' },
         { status: 401 }
       );
     }
 
-    if (!ehAdministradorMestre(session)) {
+    if (!ehAdministradorMestre(session.user as any)) {
       return NextResponse.json(
         { erro: 'Acesso negado. Apenas administradores mestres podem excluir usuários.' },
         { status: 403 }
@@ -105,7 +105,7 @@ export async function DELETE(
     }
 
     // Validar parâmetros
-    const { id } = paramsSchema.parse(params);
+    const { id } = paramsSchema.parse(await params);
 
     // Verificar se o usuário existe
     const usuario = await prisma.usuario.findUnique({
@@ -123,7 +123,7 @@ export async function DELETE(
     }
 
     // Não permitir exclusão do próprio usuário
-    if (usuario.id === session.user.id) {
+    if (usuario.id === (session.user as any).id) {
       return NextResponse.json(
         { erro: 'Não é possível excluir seu próprio usuário' },
         { status: 400 }
@@ -165,7 +165,7 @@ export async function DELETE(
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Parâmetros inválidos', detalhes: error.errors },
+        { erro: 'Parâmetros inválidos', detalhes: error.issues },
         { status: 400 }
       );
     }
