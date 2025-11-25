@@ -60,7 +60,10 @@ export async function GET(request: NextRequest) {
     if (filtrosValidados.tipo) {
       where.perfis = {
         some: {
-          tipo: filtrosValidados.tipo,
+          tipo: {
+            equals: filtrosValidados.tipo,
+            mode: 'insensitive',
+          },
         },
       };
     }
@@ -102,7 +105,12 @@ export async function GET(request: NextRequest) {
       prisma.usuario.count({ where }),
     ]);
 
-    return NextResponse.json(usuarios);
+    return NextResponse.json({
+      usuarios,
+      total,
+      pagina: filtrosValidados.pagina,
+      limite: filtrosValidados.limite,
+    });
   } catch (error) {
     console.error('Erro ao buscar usuários:', error);
     
@@ -152,11 +160,9 @@ export async function POST(request: NextRequest) {
       perfis: z.array(
         z.object({
           condominioId: z.string().min(1, 'ID do condomínio é obrigatório'),
-          tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador'], {
-            invalid_type_error: 'Tipo de perfil inválido'
-          }),
+          tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador']),
           ativo: z.boolean().optional(),
-          permissoes: z.record(z.boolean()).optional(),
+          permissoes: z.record(z.string(), z.boolean()).optional(),
         })
       ).min(1, 'Ao menos um perfil deve ser informado'),
     });

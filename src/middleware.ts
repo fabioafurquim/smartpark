@@ -67,7 +67,6 @@ export async function middleware(request: NextRequest) {
     const rotasProtegidas = [
       '/dashboard',
       '/condominios',
-      '/usuarios',
       '/configuracoes',
       '/relatorios',
     ];

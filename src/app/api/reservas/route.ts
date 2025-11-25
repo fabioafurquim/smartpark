@@ -9,6 +9,7 @@ const createReservaSchema = z.object({
   condominioId: z.string().min(1, 'ID do condomínio é obrigatório'),
   dataInicio: z.string().datetime('Data de início deve ser uma data válida'),
   dataFim: z.string().datetime('Data de fim deve ser uma data válida'),
+  tipoLocacao: z.enum(['HORA', 'DIARIA', 'MENSAL', 'ANUAL']).optional(),
   observacoes: z.string().optional(),
 });
 
@@ -152,6 +153,16 @@ export async function POST(request: NextRequest) {
             ],
           },
         },
+        configuracaoLocacao: {
+          select: {
+            disponivel: true,
+            tiposPermitidos: true,
+            valorHora: true,
+            valorDiaria: true,
+            valorMensal: true,
+            valorAnual: true,
+          },
+        },
       },
     });
 
@@ -174,6 +185,28 @@ export async function POST(request: NextRequest) {
           conflitos: vaga.reservas,
         },
         { status: 409 }
+      );
+    }
+
+    // Verificar se a vaga está disponível para locação
+    if (!vaga.configuracaoLocacao || !vaga.configuracaoLocacao.disponivel) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Vaga não está disponível para locação',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Verificar se o tipo de locação é permitido
+    if (validatedData.tipoLocacao && !vaga.configuracaoLocacao.tiposPermitidos.includes(validatedData.tipoLocacao)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Tipo de locação ${validatedData.tipoLocacao.toLowerCase()} não é permitido para esta vaga`,
+        },
+        { status: 400 }
       );
     }
 
@@ -204,6 +237,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Calcular valor da reserva baseado no tipo de locação
+    let valorReserva: number | null = null;
+    if (validatedData.tipoLocacao && vaga.configuracaoLocacao) {
+      const config = vaga.configuracaoLocacao;
+      const tipoLocacao = validatedData.tipoLocacao;
+      
+      if (tipoLocacao === 'HORA' && config.valorHora) {
+        const horas = (dataFim.getTime() - dataInicio.getTime()) / (1000 * 60 * 60);
+        valorReserva = parseFloat(config.valorHora.toString()) * horas;
+      } else if (tipoLocacao === 'DIARIA' && config.valorDiaria) {
+        const dias = Math.ceil((dataFim.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
+        valorReserva = parseFloat(config.valorDiaria.toString()) * dias;
+      } else if (tipoLocacao === 'MENSAL' && config.valorMensal) {
+        valorReserva = parseFloat(config.valorMensal.toString());
+      } else if (tipoLocacao === 'ANUAL' && config.valorAnual) {
+        valorReserva = parseFloat(config.valorAnual.toString());
+      }
+    }
+
     // Criar a reserva
     const novaReserva = await prisma.reserva.create({
       data: {
@@ -212,6 +264,8 @@ export async function POST(request: NextRequest) {
         condominioId: validatedData.condominioId,
         dataInicio: new Date(validatedData.dataInicio),
         dataFim: new Date(validatedData.dataFim),
+        tipoLocacao: validatedData.tipoLocacao,
+        valor: valorReserva,
         observacoes: validatedData.observacoes,
       },
       include: {

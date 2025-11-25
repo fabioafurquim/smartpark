@@ -7,6 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TipoLocacao {
+  HORA
+  DIARIA
+  MENSAL
+  ANUAL
+}
+
+enum StatusPagamento {
+  PENDENTE
+  CONFIRMADO
+  CANCELADO
+  REEMBOLSADO
+}
+
 model ConfiguracaoSistema {
   id                             String   @id @default(cuid())
   administradorMestreConfigurado Boolean  @default(false)
@@ -30,6 +44,10 @@ model Usuario {
   sessions             Session[]
   solicitacoesCadastro SolicitacaoCadastro[]
   vagasProprietario    Vaga[]                @relation("ProprietarioVaga")
+  unidades             Unidade[]             @relation("UnidadeUsuario")
+  locacoesLocatario    Locacao[]             @relation("LocatarioLocacoes")
+  locacoesProprietario Locacao[]             @relation("ProprietarioLocacoes")
+  notificacoes         Notificacao[]
 
   @@map("usuarios")
 }
@@ -80,9 +98,11 @@ model Unidade {
   proprietario         String?
   tipo                 String                @default("APARTAMENTO")
   andar                Int                   @default(0)
+  usuarioId            String?
   solicitacoesCadastro SolicitacaoCadastro[]
   condominio           Condominio            @relation(fields: [condominioId], references: [id], onDelete: Cascade)
   torre                Torre                 @relation(fields: [torreId], references: [id], onDelete: Cascade)
+  usuario              Usuario?              @relation("UnidadeUsuario", fields: [usuarioId], references: [id], onDelete: SetNull)
   vagas                Vaga[]
 
   @@map("unidades")
@@ -99,27 +119,48 @@ model Vaga {
   condominioId         String
   reservas             Reserva[]
   solicitacoesCadastro SolicitacaoCadastro[]
+  locacoes             Locacao[]
   condominio           Condominio            @relation(fields: [condominioId], references: [id], onDelete: Cascade)
   proprietario         Usuario?              @relation("ProprietarioVaga", fields: [proprietarioId], references: [id])
   unidade              Unidade               @relation(fields: [unidadeId], references: [id], onDelete: Cascade)
+  configuracaoLocacao  ConfiguracaoLocacaoVaga?
 
   @@map("vagas")
 }
 
+model ConfiguracaoLocacaoVaga {
+  id             String       @id @default(cuid())
+  vagaId         String       @unique
+  disponivel     Boolean      @default(false)
+  tiposPermitidos TipoLocacao[]
+  valorHora      Decimal?     @db.Decimal(10, 2)
+  valorDiaria    Decimal?     @db.Decimal(10, 2)
+  valorMensal    Decimal?     @db.Decimal(10, 2)
+  valorAnual     Decimal?     @db.Decimal(10, 2)
+  criadoEm       DateTime     @default(now())
+  atualizadoEm   DateTime     @updatedAt
+  vaga           Vaga         @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+
+  @@map("configuracoes_locacao_vaga")
+}
+
 model Reserva {
-  id           String     @id @default(cuid())
-  vagaId       String
-  usuarioId    String
-  condominioId String
-  dataInicio   DateTime
-  dataFim      DateTime
-  status       String     @default("ativa")
-  observacoes  String?
-  criadoEm     DateTime   @default(now())
-  atualizadoEm DateTime   @updatedAt
-  condominio   Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
-  usuario      Usuario    @relation("ReservasUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
-  vaga         Vaga       @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+  id              String           @id @default(cuid())
+  vagaId          String
+  usuarioId       String
+  condominioId    String
+  dataInicio      DateTime
+  dataFim         DateTime
+  status          String           @default("ativa")
+  statusPagamento StatusPagamento  @default(PENDENTE)
+  observacoes     String?
+  criadoEm        DateTime         @default(now())
+  atualizadoEm    DateTime         @updatedAt
+  tipoLocacao     TipoLocacao?
+  valor           Decimal?         @db.Decimal(10, 2)
+  condominio      Condominio       @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  usuario         Usuario          @relation("ReservasUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+  vaga            Vaga             @relation(fields: [vagaId], references: [id], onDelete: Cascade)
 
   @@map("reservas")
 }
@@ -194,4 +235,45 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+model Locacao {
+  id             String   @id @default(cuid())
+  vagaId         String
+  vaga           Vaga     @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+  
+  locatarioId    String
+  locatario      Usuario  @relation("LocatarioLocacoes", fields: [locatarioId], references: [id], onDelete: Cascade)
+  
+  proprietarioId String
+  proprietario   Usuario  @relation("ProprietarioLocacoes", fields: [proprietarioId], references: [id], onDelete: Cascade)
+  
+  dataInicio     DateTime
+  dataFim        DateTime
+  tipoLocacao    String
+  valor          Float
+  status         String   @default("PENDENTE")
+  
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+  
+  @@map("locacoes")
+}
+
+model Notificacao {
+  id           String   @id @default(cuid())
+  usuarioId    String
+  usuario      Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  
+  tipo         String   // LOCACAO_SOLICITADA, LOCACAO_APROVADA, LOCACAO_REJEITADA, LOCACAO_CANCELADA, SISTEMA
+  titulo       String
+  mensagem     String
+  lida         Boolean  @default(false)
+  
+  // Referências opcionais para navegação
+  locacaoId    String?
+  
+  criadoEm     DateTime @default(now())
+  
+  @@map("notificacoes")
 }

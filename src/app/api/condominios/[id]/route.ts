@@ -123,37 +123,8 @@ export async function PUT(
       include: { perfis: true },
     });
 
-    const isAdminMaster = usuario?.perfis.some(
-      (perfil) => perfil.tipo === 'administrador_master'
-    );
-
-    if (!isAdminMaster) {
-      return NextResponse.json(
-        { error: 'Acesso negado. Apenas administradores master podem excluir condomínios.' },
-        { status: 403 }
-      );
-    }
-
-    // Verificar se há dependências
-    const temDependencias = 
-      condominioExistente._count.torres > 0 ||
-      condominioExistente._count.perfisUsuario > 0;
-
-    if (temDependencias) {
-      return NextResponse.json(
-        { 
-          error: 'Não é possível excluir o condomínio pois existem torres ou usuários associados.',
-          details: {
-            torres: condominioExistente._count.torres,
-            perfisUsuario: condominioExistente._count.perfisUsuario,
-          },
-        },
-        { status: 409 }
-      );
-    }
-
     const isAdmin = usuario?.perfis.some(
-      (perfil) => perfil.tipo === 'administrador_master' || perfil.tipo === 'administrador_condominio'
+      (perfil) => perfil.tipo === 'administrador_mestre' || perfil.tipo === 'administrador_condominio'
     );
 
     if (!isAdmin) {
@@ -272,12 +243,12 @@ export async function DELETE(
     });
 
     const isAdminMaster = usuario?.perfis.some(
-      (perfil) => perfil.tipo === 'administrador_master'
+      (perfil) => perfil.tipo === 'administrador_mestre'
     );
 
     if (!isAdminMaster) {
       return NextResponse.json(
-        { error: 'Acesso negado. Apenas administradores master podem excluir condomínios.' },
+        { error: 'Acesso negado. Apenas administradores mestres podem excluir condomínios.' },
         { status: 403 }
       );
     }

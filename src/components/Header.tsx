@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { 
   Menu,
@@ -8,10 +8,24 @@ import {
   User, 
   Settings,
   LogOut, 
-  ChevronDown
+  ChevronDown,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UsuarioSessao } from '@/types';
+
+interface Notificacao {
+  id: string;
+  tipo: string;
+  titulo: string;
+  mensagem: string;
+  lida: boolean;
+  criadoEm: string;
+  locacaoId?: string;
+}
 
 interface HeaderProps {
   titulo?: string;
@@ -23,15 +37,87 @@ interface HeaderProps {
  * Componente Header - Cabeçalho da aplicação
  */
 export function Header({ titulo, subtitulo, aoAlternarSidebar }: HeaderProps) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [menuUsuarioAberto, setMenuUsuarioAberto] = useState(false);
   const [notificacoesAbertas, setNotificacoesAbertas] = useState(false);
+  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
+  const [naoLidas, setNaoLidas] = useState(0);
 
   const usuario = session?.user as UsuarioSessao;
 
+  // Carregar notificações
+  useEffect(() => {
+    const carregarNotificacoes = async () => {
+      try {
+        const response = await fetch('/api/notificacoes?limite=5');
+        if (response.ok) {
+          const dados = await response.json();
+          setNotificacoes(dados.notificacoes || []);
+          setNaoLidas(dados.naoLidas || 0);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar notificações:', error);
+      }
+    };
+
+    if (status === 'authenticated') {
+      carregarNotificacoes();
+      // Atualizar a cada 30 segundos
+      const interval = setInterval(carregarNotificacoes, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [status]);
+
+  // Marcar notificações como lidas ao abrir
+  const handleAbrirNotificacoes = async () => {
+    setNotificacoesAbertas(!notificacoesAbertas);
+    
+    if (!notificacoesAbertas && naoLidas > 0) {
+      try {
+        await fetch('/api/notificacoes', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marcarTodas: true })
+        });
+        setNaoLidas(0);
+        // Atualizar lista marcando como lidas
+        setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
+      } catch (error) {
+        console.error('Erro ao marcar notificações:', error);
+      }
+    }
+  };
+
+  // Formatar tempo relativo
+  const formatarTempoRelativo = (data: string) => {
+    const agora = new Date();
+    const dataNotif = new Date(data);
+    const diffMs = agora.getTime() - dataNotif.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHoras = Math.floor(diffMs / 3600000);
+    const diffDias = Math.floor(diffMs / 86400000);
+
+    if (diffMin < 1) return 'Agora';
+    if (diffMin < 60) return `Há ${diffMin} min`;
+    if (diffHoras < 24) return `Há ${diffHoras}h`;
+    if (diffDias < 7) return `Há ${diffDias}d`;
+    return dataNotif.toLocaleDateString('pt-BR');
+  };
+
+  // Obter ícone da notificação
+  const getIconeNotificacao = (tipo: string) => {
+    switch (tipo) {
+      case 'LOCACAO_SOLICITADA': return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
+      case 'LOCACAO_APROVADA': return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case 'LOCACAO_REJEITADA': return <XCircle className="w-4 h-4 text-red-600" />;
+      case 'LOCACAO_CANCELADA': return <XCircle className="w-4 h-4 text-gray-600" />;
+      default: return <Bell className="w-4 h-4 text-blue-600" />;
+    }
+  };
+
   // Função para fazer logout
   const handleLogout = async () => {
-    await signOut({ callbackUrl: '/auth/login' });
+    await signOut({ callbackUrl: '/login' });
   };
 
   return (
@@ -67,57 +153,74 @@ export function Header({ titulo, subtitulo, aoAlternarSidebar }: HeaderProps) {
           {/* Notificações */}
           <div className="relative">
             <button
-              onClick={() => setNotificacoesAbertas(!notificacoesAbertas)}
+              onClick={handleAbrirNotificacoes}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative"
             >
               <Bell className="w-5 h-5 text-gray-600" />
-              {/* Badge de notificações */}
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                3
-              </span>
+              {/* Badge de notificações não lidas */}
+              {naoLidas > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {naoLidas > 9 ? '9+' : naoLidas}
+                </span>
+              )}
             </button>
 
             {/* Dropdown de notificações */}
             {notificacoesAbertas && (
               <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                <div className="p-4 border-b border-gray-200">
+                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900">Notificações</h3>
+                  {notificacoes.length > 0 && (
+                    <span className="text-xs text-gray-500">
+                      {notificacoes.length} recentes
+                    </span>
+                  )}
                 </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {/* Exemplo de notificações */}
-                  <div className="p-4 hover:bg-gray-50 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">
-                      Nova solicitação de cadastro
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      João Silva solicitou cadastro no Condomínio ABC
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">Há 2 minutos</p>
-                  </div>
-                  <div className="p-4 hover:bg-gray-50 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">
-                      Usuário aprovado
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      Maria Santos foi aprovada como moradora
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">Há 1 hora</p>
-                  </div>
-                  <div className="p-4 hover:bg-gray-50">
-                    <p className="text-sm font-medium text-gray-900">
-                      Sistema atualizado
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      Nova versão do sistema foi instalada
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">Há 3 horas</p>
-                  </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notificacoes.length === 0 ? (
+                    <div className="p-6 text-center">
+                      <Bell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">Nenhuma notificação</p>
+                    </div>
+                  ) : (
+                    notificacoes.map((notificacao) => (
+                      <div 
+                        key={notificacao.id} 
+                        className={cn(
+                          "p-4 hover:bg-gray-50 border-b border-gray-100 cursor-pointer",
+                          !notificacao.lida && "bg-blue-50"
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5">
+                            {getIconeNotificacao(notificacao.tipo)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900">
+                              {notificacao.titulo}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                              {notificacao.mensagem}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {formatarTempoRelativo(notificacao.criadoEm)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
-                <div className="p-4 border-t border-gray-200">
-                  <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                    Ver todas as notificações
-                  </button>
-                </div>
+                {notificacoes.length > 0 && (
+                  <div className="p-3 border-t border-gray-200">
+                    <a 
+                      href="/minhas-locacoes" 
+                      className="block text-center text-sm text-primary-600 hover:text-primary-700 font-medium"
+                    >
+                      Ver minhas locações
+                    </a>
+                  </div>
+                )}
               </div>
             )}
           </div>

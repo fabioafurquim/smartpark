@@ -221,11 +221,13 @@ export function temPermissao(
         return [
           'aprovarSolicitacoes',
           'visualizarRelatorios',
+          'gerenciarReservas',
         ].includes(permissao);
       
       case 'morador':
         return [
           'visualizarPerfil',
+          'gerenciarReservas',
         ].includes(permissao);
       
       default:

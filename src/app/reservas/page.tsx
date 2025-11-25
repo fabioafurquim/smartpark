@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { 
   CalendarIcon, 
   PlusIcon, 
@@ -10,6 +11,7 @@ import {
   TrendingUpIcon,
   AlertCircleIcon
 } from 'lucide-react';
+import { Layout } from '@/components';
 import ReservaForm from '@/components/reservas/ReservaForm';
 import ReservasList from '@/components/reservas/ReservasList';
 
@@ -46,6 +48,9 @@ interface EstatisticasReservas {
 }
 
 export default function ReservasPage() {
+  const { data: session } = useSession();
+  const usuario = session?.user as any;
+  
   const [condominios, setCondominios] = useState<Condominio[]>([]);
   const [vagasDisponiveis, setVagasDisponiveis] = useState<Vaga[]>([]);
   const [estatisticas, setEstatisticas] = useState<EstatisticasReservas | null>(null);
@@ -54,6 +59,7 @@ export default function ReservasPage() {
   const [activeTab, setActiveTab] = useState('lista');
   const [showNovaReserva, setShowNovaReserva] = useState(false);
   const [reservaEditandoId, setReservaEditandoId] = useState<string | null>(null);
+  const [condominioPreSelecionado, setCondominioPreSelecionado] = useState<string>('');
 
   useEffect(() => {
     carregarDados();
@@ -72,6 +78,12 @@ export default function ReservasPage() {
         (condominiosData?.success && Array.isArray(condominiosData?.data)) ? condominiosData.data :
         (Array.isArray(condominiosData?.condominios)) ? condominiosData.condominios : [];
       setCondominios(listaCondominios ?? []);
+
+      // Pré-selecionar condomínio do usuário logado
+      if (usuario?.perfis && usuario.perfis.length > 0) {
+        const condominioDoUsuario = usuario.perfis[0].condominioId;
+        setCondominioPreSelecionado(condominioDoUsuario);
+      }
 
       // Carregar estatísticas
       await carregarEstatisticas();
@@ -142,28 +154,22 @@ export default function ReservasPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <ClockIcon className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Carregando sistema de reservas...</p>
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <ClockIcon className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <p className="text-gray-600">Carregando sistema de reservas...</p>
+          </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <CalendarIcon className="h-8 w-8 text-blue-600" />
-            Sistema de Reservas
-          </h1>
-          <p className="text-gray-600 mt-2">
-            Gerencie reservas de vagas temporárias do condomínio
-          </p>
-        </div>
+    <Layout titulo="Sistema de Reservas" subtitulo="Gerencie reservas de vagas temporárias do condomínio">
+      <div className="space-y-8">
+      {/* Botão Nova Reserva */}
+      <div className="flex justify-end">
         <button
           onClick={handleNovaReserva}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
@@ -276,11 +282,13 @@ export default function ReservasPage() {
                   setActiveTab('lista');
                 }}
                 reservaId={reservaEditandoId || undefined}
+                condominioPreSelecionado={condominioPreSelecionado}
               />
             </div>
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </Layout>
   );
 }

@@ -74,13 +74,13 @@ export const criarVagaSchema = z.object({
   numero: z.string()
     .min(1, 'Número é obrigatório')
     .max(10, 'Número deve ter no máximo 10 caracteres'),
-  tipo: z.enum(['comum', 'deficiente', 'idoso']),
+  tipo: z.enum(['COBERTA', 'DESCOBERTA', 'DEFICIENTE', 'IDOSO', 'VISITANTE']),
   unidadeId: z.string().uuid('ID da unidade inválido'),
 });
 
 export const atualizarVagaSchema = z.object({
   numero: z.string().min(1).max(10).optional(),
-  tipo: z.enum(['comum', 'deficiente', 'idoso']).optional(),
+  tipo: z.enum(['COBERTA', 'DESCOBERTA', 'DEFICIENTE', 'IDOSO', 'VISITANTE']).optional(),
 });
 
 // Schemas para PerfilUsuario

@@ -84,26 +84,29 @@ export function criarMiddlewareAutorizacao(config: ConfigAutorizacao) {
       }
 
       // Se deve filtrar apenas pelo próprio condomínio e não é admin mestre
-      if (config.apenasProprioCondominio && !ehAdministradorMestre(usuario)) {
-        const condominiosUsuario = obterCondominiosUsuario(usuario);
-        
-        // Se obterCondominiosUsuario retorna 'TODOS_CONDOMINIOS', é admin mestre
-        if (condominiosUsuario === 'TODOS_CONDOMINIOS') {
-          // Admin mestre pode acessar qualquer condomínio, não fazer nada
-        } else {
-          const condominioIds = condominiosUsuario.map(c => c.id);
+      if (config.apenasProprioCondominio) {
+        // Admin mestre tem acesso a todos os condomínios
+        if (!ehAdministradorMestre(usuario)) {
+          const condominiosUsuario = obterCondominiosUsuario(usuario);
           
-          // Se condominioId foi especificado, verificar se o usuário tem acesso
-          if (condominioId && !condominioIds.includes(condominioId)) {
-            return NextResponse.json(
-              { erro: 'Acesso negado. Você não tem acesso a este condomínio.' },
-              { status: 403 }
-            );
-          }
-          
-          // Se não foi especificado condominioId, usar o primeiro condomínio do usuário
-          if (!condominioId && condominioIds.length > 0) {
-            condominioId = condominioIds[0];
+          // Se obterCondominiosUsuario retorna 'TODOS_CONDOMINIOS', é admin mestre
+          if (condominiosUsuario === 'TODOS_CONDOMINIOS') {
+            // Admin mestre pode acessar qualquer condomínio, não fazer nada
+          } else {
+            const condominioIds = condominiosUsuario.map(c => c.id);
+            
+            // Se condominioId foi especificado, verificar se o usuário tem acesso
+            if (condominioId && !condominioIds.includes(condominioId)) {
+              return NextResponse.json(
+                { erro: 'Acesso negado. Você não tem acesso a este condomínio.' },
+                { status: 403 }
+              );
+            }
+            
+            // Se não foi especificado condominioId, usar o primeiro condomínio do usuário
+            if (!condominioId && condominioIds.length > 0) {
+              condominioId = condominioIds[0];
+            }
           }
         }
       }

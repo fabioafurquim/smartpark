@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
@@ -19,6 +19,23 @@ interface LayoutProps {
 export function Layout({ children, titulo, subtitulo }: LayoutProps) {
   const { status } = useSession();
   const [sidebarAberta, setSidebarAberta] = useState(true);
+  const [montado, setMontado] = useState(false);
+
+  // Carregar estado da sidebar do localStorage
+  useEffect(() => {
+    const estadoSalvo = localStorage.getItem('sidebarAberta');
+    if (estadoSalvo !== null) {
+      setSidebarAberta(JSON.parse(estadoSalvo));
+    }
+    setMontado(true);
+  }, []);
+
+  // Salvar estado da sidebar no localStorage
+  const alternarSidebar = () => {
+    const novoEstado = !sidebarAberta;
+    setSidebarAberta(novoEstado);
+    localStorage.setItem('sidebarAberta', JSON.stringify(novoEstado));
+  };
 
   // Se não estiver autenticado, renderizar apenas o conteúdo
   if (status === 'unauthenticated') {
@@ -38,12 +55,21 @@ export function Layout({ children, titulo, subtitulo }: LayoutProps) {
     );
   }
 
+  // Não renderizar até estar montado (evita hidratação incorreta)
+  if (!montado) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
       <Sidebar 
         aberta={sidebarAberta} 
-        aoAlternar={() => setSidebarAberta(!sidebarAberta)}
+        aoAlternar={alternarSidebar}
       />
       
       {/* Conteúdo principal */}
@@ -55,7 +81,7 @@ export function Layout({ children, titulo, subtitulo }: LayoutProps) {
         <Header 
           titulo={titulo}
           subtitulo={subtitulo}
-          aoAlternarSidebar={() => setSidebarAberta(!sidebarAberta)}
+          aoAlternarSidebar={alternarSidebar}
         />
         
         {/* Área de conteúdo */}

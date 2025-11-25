@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Home } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Home, Search } from 'lucide-react';
 
 interface Condominio {
   id: string;
@@ -14,25 +14,40 @@ interface Torre {
   tipo: 'TORRE' | 'BLOCO';
 }
 
+type TipoUnidade = 'APARTAMENTO' | 'COBERTURA' | 'LOJA' | 'SALA_COMERCIAL';
+
+interface Usuario {
+  id: string;
+  nome: string;
+  email: string;
+}
+
 interface Unidade {
   id: string;
   numero: string;
   andar: number;
-  tipo: 'APARTAMENTO' | 'COBERTURA' | 'LOJA' | 'SALA';
+  tipo: TipoUnidade;
   proprietario?: string;
   contato?: string;
   torreId: string;
   condominioId: string;
+  usuarioId?: string;
+  usuario?: {
+    id: string;
+    nome: string;
+    email: string;
+  };
 }
 
 interface UnidadeFormData {
   numero: string;
   andar: number;
-  tipo: 'APARTAMENTO' | 'COBERTURA' | 'LOJA' | 'SALA';
+  tipo: TipoUnidade;
   proprietario?: string;
   contato?: string;
   torreId: string;
   condominioId: string;
+  usuarioId?: string;
 }
 
 interface UnidadeModalProps {
@@ -44,12 +59,12 @@ interface UnidadeModalProps {
   selectedCondominioId: string;
 }
 
-const TIPOS_UNIDADE = [
+const TIPOS_UNIDADE: { value: TipoUnidade; label: string }[] = [
   { value: 'APARTAMENTO', label: 'Apartamento' },
   { value: 'COBERTURA', label: 'Cobertura' },
   { value: 'LOJA', label: 'Loja' },
-  { value: 'SALA', label: 'Sala' },
-] as const;
+  { value: 'SALA_COMERCIAL', label: 'Sala Comercial' },
+];
 
 export default function UnidadeModal({
   isOpen,
@@ -67,11 +82,17 @@ export default function UnidadeModal({
     contato: '',
     torreId: '',
     condominioId: selectedCondominioId,
+    usuarioId: '',
   });
   const [torres, setTorres] = useState<Torre[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [usuariosFiltrados, setUsuariosFiltrados] = useState<Usuario[]>([]);
+  const [buscaUsuario, setBuscaUsuario] = useState('');
+  const [dropdownAberto, setDropdownAberto] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const inputUsuarioRef = useRef<HTMLInputElement>(null);
 
   // Reset form when modal opens/closes or unidade changes
   useEffect(() => {
@@ -85,7 +106,14 @@ export default function UnidadeModal({
           contato: unidade.contato || '',
           torreId: unidade.torreId,
           condominioId: unidade.condominioId,
+          usuarioId: unidade.usuarioId || '',
         });
+        // Se tem usuário, mostrar o nome na busca
+        if (unidade.usuario) {
+          setBuscaUsuario(unidade.usuario.nome);
+        } else {
+          setBuscaUsuario('');
+        }
       } else {
         setFormData({
           numero: '',
@@ -95,18 +123,23 @@ export default function UnidadeModal({
           contato: '',
           torreId: '',
           condominioId: selectedCondominioId,
+          usuarioId: '',
         });
+        setBuscaUsuario('');
       }
       setErrors({});
+      setDropdownAberto(false);
     }
   }, [isOpen, unidade, selectedCondominioId]);
 
-  // Fetch torres when condominio changes
+  // Fetch torres and usuarios when condominio changes
   useEffect(() => {
     if (formData.condominioId) {
       fetchTorres(formData.condominioId);
+      fetchUsuarios(formData.condominioId);
     } else {
       setTorres([]);
+      setUsuarios([]);
     }
   }, [formData.condominioId]);
 
@@ -123,6 +156,60 @@ export default function UnidadeModal({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchUsuarios = async (condominioId: string) => {
+    try {
+      const response = await fetch(`/api/admin/usuarios?tipo=morador`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Dados da API:', data);
+        console.log('🏢 Condomínio selecionado:', condominioId);
+        
+        // Filtrar usuários que têm perfil de morador no condomínio selecionado
+        const usuariosDoCondominio = (data.usuarios || []).filter((u: any) => {
+          const temPerfilNoCondominio = u.perfis?.some((p: any) => {
+            console.log(`👤 ${u.nome}: perfil condominioId=${p.condominioId}, tipo=${p.tipo}`);
+            return p.condominioId === condominioId && p.tipo === 'morador';
+          });
+          return temPerfilNoCondominio;
+        });
+        
+        console.log('✅ Usuários filtrados:', usuariosDoCondominio);
+        setUsuarios(usuariosDoCondominio);
+        setUsuariosFiltrados(usuariosDoCondominio);
+      } else {
+        console.error('❌ Erro na API:', response.status);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar usuários:', error);
+    }
+  };
+
+  const filtrarUsuarios = (termo: string) => {
+    setBuscaUsuario(termo);
+    if (!termo.trim()) {
+      setUsuariosFiltrados(usuarios);
+    } else {
+      const filtrados = usuarios.filter(
+        (u) =>
+          u.nome.toLowerCase().includes(termo.toLowerCase()) ||
+          u.email.toLowerCase().includes(termo.toLowerCase())
+      );
+      setUsuariosFiltrados(filtrados);
+    }
+  };
+
+  const selecionarUsuario = (usuario: Usuario) => {
+    setFormData((prev) => ({ ...prev, usuarioId: usuario.id }));
+    setBuscaUsuario(usuario.nome);
+    setDropdownAberto(false);
+  };
+
+  const limparUsuario = () => {
+    setFormData((prev) => ({ ...prev, usuarioId: '' }));
+    setBuscaUsuario('');
+    setDropdownAberto(false);
   };
 
   const validateForm = (): boolean => {
@@ -272,19 +359,31 @@ export default function UnidadeModal({
               Andar *
             </label>
             <input
-              type="number"
+              type="text"
               id="andar"
-              value={formData.andar}
-              onChange={(e) => handleInputChange('andar', parseInt(e.target.value) || 0)}
+              value={formData.andar === 0 && formData.numero ? 'T' : formData.andar}
+              onChange={(e) => {
+                const valor = e.target.value.toUpperCase();
+                if (valor === 'T' || valor === '') {
+                  handleInputChange('andar', 0);
+                } else {
+                  const num = parseInt(valor);
+                  if (!isNaN(num) && num >= 0) {
+                    handleInputChange('andar', num);
+                  }
+                }
+              }}
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.andar ? 'border-red-300' : 'border-gray-300'
               }`}
-              min="0"
-              placeholder="0 para térreo"
+              placeholder="T para térreo ou número"
             />
             {errors.andar && (
               <p className="mt-1 text-sm text-red-600">{errors.andar}</p>
             )}
+            <p className="mt-1 text-xs text-gray-500">
+              Digite "T" para térreo ou um número (0, 1, 2, etc)
+            </p>
           </div>
 
           {/* Tipo */}
@@ -319,6 +418,64 @@ export default function UnidadeModal({
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Nome do proprietário"
             />
+          </div>
+
+          {/* Usuário (Morador) - Autocomplete */}
+          <div className="relative">
+            <label htmlFor="usuario" className="block text-sm font-medium text-gray-700 mb-1">
+              Associar Morador
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <input
+                ref={inputUsuarioRef}
+                type="text"
+                id="usuario"
+                value={buscaUsuario}
+                onChange={(e) => filtrarUsuarios(e.target.value)}
+                onFocus={() => setDropdownAberto(true)}
+                onBlur={() => setTimeout(() => setDropdownAberto(false), 200)}
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Digite o nome ou email do morador"
+                autoComplete="off"
+              />
+              {formData.usuarioId && (
+                <button
+                  type="button"
+                  onClick={limparUsuario}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown de sugestões */}
+            {dropdownAberto && usuariosFiltrados.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                {usuariosFiltrados.map((usuario) => (
+                  <button
+                    key={usuario.id}
+                    type="button"
+                    onClick={() => selecionarUsuario(usuario)}
+                    className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b last:border-b-0 flex flex-col"
+                  >
+                    <span className="font-medium text-gray-900">{usuario.nome}</span>
+                    <span className="text-xs text-gray-500">{usuario.email}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {dropdownAberto && buscaUsuario && usuariosFiltrados.length === 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg p-4 text-center text-gray-500">
+                Nenhum morador encontrado
+              </div>
+            )}
+
+            <p className="mt-1 text-xs text-gray-500">
+              O morador associado poderá gerenciar as vagas desta unidade
+            </p>
           </div>
 
           {/* Contato */}

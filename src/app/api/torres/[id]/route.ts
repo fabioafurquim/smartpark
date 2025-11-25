@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../lib/auth';
+import { authOptions, temPermissao } from '../../../../lib/auth';
 import { prisma } from '../../../../lib/prisma';
 import { z } from 'zod';
+import { UsuarioSessao } from '../../../../types';
 
 // Schema de validação para atualização de torre
 const updateTorreSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório').optional(),
-  tipo: z.enum(['residencial', 'comercial', 'misto']).optional(),
+  tipo: z.enum(['TORRE', 'BLOCO']).optional(),
   descricao: z.string().optional()
 });
 
@@ -24,6 +25,7 @@ export async function GET(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const usuario = session.user as UsuarioSessao;
     const { id } = await params;
     const torre = await prisma.torre.findUnique({
       where: { id },
@@ -55,6 +57,13 @@ export async function GET(
       return NextResponse.json(
         { error: 'Torre não encontrada' },
         { status: 404 }
+      );
+    }
+
+    if (!temPermissao(usuario, 'gerenciarEstrutura', torre.condominioId)) {
+      return NextResponse.json(
+        { error: 'Acesso negado ao condomínio especificado' },
+        { status: 403 }
       );
     }
 
@@ -94,6 +103,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const usuario = session.user as UsuarioSessao;
     const { id } = await params;
     const body = await request.json();
     const validatedData = updateTorreSchema.parse(body);
@@ -107,6 +117,13 @@ export async function PUT(
       return NextResponse.json(
         { error: 'Torre/bloco não encontrada' },
         { status: 404 }
+      );
+    }
+
+    if (!temPermissao(usuario, 'gerenciarEstrutura', torreExistente.condominioId)) {
+      return NextResponse.json(
+        { error: 'Acesso negado ao condomínio especificado' },
+        { status: 403 }
       );
     }
 
@@ -187,6 +204,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const usuario = session.user as UsuarioSessao;
     const { id } = await params;
     // Verificar se a torre existe
     const torre = await prisma.torre.findUnique({
@@ -207,12 +225,19 @@ export async function DELETE(
       );
     }
 
+    if (!temPermissao(usuario, 'gerenciarEstrutura', torre.condominioId)) {
+      return NextResponse.json(
+        { error: 'Acesso negado ao condomínio especificado' },
+        { status: 403 }
+      );
+    }
+
     // Verificar se há unidades vinculadas
     if (torre._count.unidades > 0) {
       return NextResponse.json(
-        { 
+        {
           error: 'Não é possível excluir torre/bloco que possui unidades vinculadas',
-          details: `Esta torre/bloco possui ${torre._count.unidades} unidade(s) vinculada(s)` 
+          details: `Esta torre/bloco possui ${torre._count.unidades} unidade(s) vinculada(s)`
         },
         { status: 400 }
       );

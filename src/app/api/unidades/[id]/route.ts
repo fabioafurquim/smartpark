@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../lib/auth';
+import { authOptions, temPermissao } from '../../../../lib/auth';
 import { prisma } from '../../../../lib/prisma';
 import { z } from 'zod';
+import { UsuarioSessao } from '../../../../types';
 
 // Schema de validação para atualização de unidade
 const updateUnidadeSchema = z.object({
@@ -10,7 +11,8 @@ const updateUnidadeSchema = z.object({
   andar: z.number().int().min(0, 'Andar deve ser um número inteiro não negativo').optional(),
   tipo: z.enum(['APARTAMENTO', 'SALA_COMERCIAL', 'LOJA', 'COBERTURA']).optional(),
   proprietario: z.string().optional(),
-  contato: z.string().optional()
+  contato: z.string().optional(),
+  usuarioId: z.string().optional().nullable()
 });
 
 /**
@@ -26,6 +28,7 @@ export async function GET(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const usuario = session.user as UsuarioSessao;
     const { id } = await params;
     const unidade = await prisma.unidade.findUnique({
       where: { id },
@@ -41,6 +44,13 @@ export async function GET(
             id: true,
             nome: true,
             tipo: true
+          }
+        },
+        usuario: {
+          select: {
+            id: true,
+            nome: true,
+            email: true
           }
         },
         vagas: {
@@ -68,6 +78,13 @@ export async function GET(
       );
     }
 
+    if (!temPermissao(usuario, 'gerenciarEstrutura', unidade.condominioId)) {
+      return NextResponse.json(
+        { error: 'Acesso negado ao condomínio especificado' },
+        { status: 403 }
+      );
+    }
+
     const unidadeFormatada = {
       id: unidade.id,
       numero: unidade.numero,
@@ -77,12 +94,14 @@ export async function GET(
       contato: unidade.contato,
       condominioId: unidade.condominioId,
       torreId: unidade.torreId,
+      usuarioId: unidade.usuarioId,
+      usuario: unidade.usuario,
       condominio: unidade.condominio,
       torre: unidade.torre,
       vagas: unidade.vagas,
       totalVagas: unidade._count.vagas,
-      createdAt: unidade.criadoEm.toISOString(),
-      updatedAt: unidade.atualizadoEm.toISOString()
+      criadoEm: unidade.criadoEm.toISOString(),
+      atualizadoEm: unidade.atualizadoEm.toISOString()
     };
 
     return NextResponse.json(unidadeFormatada);
@@ -108,6 +127,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    const usuario = session.user as UsuarioSessao;
     const body = await request.json();
     const validatedData = updateUnidadeSchema.parse(body);
 
@@ -121,6 +141,13 @@ export async function PUT(
       return NextResponse.json(
         { error: 'Unidade não encontrada' },
         { status: 404 }
+      );
+    }
+
+    if (!temPermissao(usuario, 'gerenciarEstrutura', unidadeExistente.condominioId)) {
+      return NextResponse.json(
+        { error: 'Acesso negado ao condomínio especificado' },
+        { status: 403 }
       );
     }
 
@@ -159,6 +186,13 @@ export async function PUT(
             tipo: true
           }
         },
+        usuario: {
+          select: {
+            id: true,
+            nome: true,
+            email: true
+          }
+        },
         _count: {
           select: {
             vagas: true
@@ -176,11 +210,13 @@ export async function PUT(
       contato: unidadeAtualizada.contato,
       condominioId: unidadeAtualizada.condominioId,
       torreId: unidadeAtualizada.torreId,
+      usuarioId: unidadeAtualizada.usuarioId,
+      usuario: unidadeAtualizada.usuario,
       condominio: unidadeAtualizada.condominio,
       torre: unidadeAtualizada.torre,
       totalVagas: unidadeAtualizada._count.vagas,
-      createdAt: unidadeAtualizada.criadoEm.toISOString(),
-      updatedAt: unidadeAtualizada.atualizadoEm.toISOString()
+      criadoEm: unidadeAtualizada.criadoEm.toISOString(),
+      atualizadoEm: unidadeAtualizada.atualizadoEm.toISOString()
     };
 
     return NextResponse.json(unidadeFormatada);

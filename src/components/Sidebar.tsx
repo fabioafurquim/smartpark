@@ -15,7 +15,8 @@ import {
   Menu,
   X,
   Calendar,
-  MapPin
+  MapPin,
+  Car
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { temPermissao, ehAdministradorMestre } from '@/lib/auth';
@@ -34,6 +35,7 @@ interface ItemMenu {
   permissaoNecessaria?: string;
   subItens?: ItemMenu[];
   apenasAdminMestre?: boolean;
+  apenasParaSindico?: boolean;
 }
 
 /**
@@ -45,6 +47,12 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
   const [itensExpandidos, setItensExpandidos] = useState<string[]>(['dashboard']);
 
   const usuario = session?.user as UsuarioSessao;
+
+  // Função para verificar se é síndico
+  const ehSindico = (): boolean => {
+    if (!usuario) return false;
+    return usuario.perfis.some(perfil => perfil.tipo === 'sindico');
+  };
 
   // Definição dos itens do menu
   const itensMenu: ItemMenu[] = [
@@ -64,13 +72,19 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
           id: 'admin-usuarios',
           rotulo: 'Usuários',
           icone: Users,
-          href: '/admin/usuarios',
+          href: '/dashboard/usuarios',
         },
         {
           id: 'admin-condominios',
           rotulo: 'Condomínios',
           icone: Building2,
-          href: '/admin/condominios',
+          href: '/dashboard/condominios',
+        },
+        {
+          id: 'admin-reservas',
+          rotulo: 'Reservas Globais',
+          icone: Calendar,
+          href: '/reservas-admin',
         }
       ]
     },
@@ -121,31 +135,46 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
       ],
     },
     {
+      id: 'locacao',
+      rotulo: 'Locação',
+      icone: MapPin,
+      permissaoNecessaria: 'gerenciarReservas',
+      href: '/locacao',
+    },
+    {
+      id: 'minhas-locacoes',
+      rotulo: 'Minhas Locações',
+      icone: Calendar,
+      permissaoNecessaria: 'gerenciarReservas',
+      href: '/minhas-locacoes',
+    },
+    {
+      id: 'minhas-vagas',
+      rotulo: 'Minhas Vagas',
+      icone: Car,
+      permissaoNecessaria: 'gerenciarReservas',
+      href: '/minhas-vagas',
+    },
+    {
       id: 'reservas',
       rotulo: 'Reservas',
       icone: Calendar,
       permissaoNecessaria: 'gerenciarReservas',
-      href: '/reservas',
-    },
-    {
-      id: 'usuarios',
-      rotulo: 'Usuários',
-      icone: Users,
-      permissaoNecessaria: 'gerenciarUsuarios',
       subItens: [
         {
-          id: 'usuarios-lista',
-          rotulo: 'Listar Usuários',
-          icone: Users,
-          href: '/usuarios',
+          id: 'reservas-vaga',
+          rotulo: 'Minhas Reservas',
+          icone: Calendar,
+          href: '/reservas-vaga',
         },
         {
-          id: 'usuarios-perfis',
-          rotulo: 'Perfis',
-          icone: Users,
-          href: '/usuarios/perfis',
+          id: 'reservas-sindico',
+          rotulo: 'Reservas do Condomínio',
+          icone: Calendar,
+          href: '/reservas-sindico',
+          apenasParaSindico: true,
         },
-      ],
+      ]
     },
     {
       id: 'solicitacoes',
@@ -153,6 +182,12 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
       icone: UserCheck,
       permissaoNecessaria: 'aprovarSolicitacoes',
       href: '/solicitacoes',
+    },
+    {
+      id: 'perfil',
+      rotulo: 'Meu Perfil',
+      icone: Users,
+      href: '/dashboard/perfil',
     },
     {
       id: 'configuracoes',
@@ -168,6 +203,11 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
 
     // Verificar se é apenas para admin mestre
     if (item.apenasAdminMestre && !ehAdministradorMestre(usuario)) {
+      return false;
+    }
+
+    // Verificar se é apenas para síndico
+    if (item.apenasParaSindico && !ehSindico()) {
       return false;
     }
 

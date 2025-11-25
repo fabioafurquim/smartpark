@@ -30,9 +30,9 @@ interface Condominio {
 interface VagaFormData {
   numero: string;
   tipo: 'COBERTA' | 'DESCOBERTA' | 'DEFICIENTE' | 'IDOSO' | 'VISITANTE';
-  unidadeId: string; // Agora obrigatório
+  unidadeId: string;
   condominioId: string;
-  proprietarioId?: string;
+  proprietarioId?: string | null;
 }
 
 interface VagaModalProps {

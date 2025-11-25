@@ -1,70 +1,302 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../lib/auth';
+import { authOptions, ehAdministradorMestre } from '../../../../lib/auth';
 import { prisma } from '../../../../lib/prisma';
-import type { EstatisticasDashboard } from '../../../../types';
+import { UsuarioSessao } from '../../../../types';
 
 /**
  * GET /api/dashboard/estatisticas
- * Retorna estatísticas gerais do sistema para o dashboard
+ * Retorna estatísticas personalizadas por perfil do usuário
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticação
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-    return NextResponse.json(
-      { erro: 'Não autorizado' },
-      { status: 401 }
-    );
-  }
+      return NextResponse.json(
+        { erro: 'Não autorizado' },
+        { status: 401 }
+      );
+    }
 
-  const userId = (session.user as any).id;
+    const usuario = session.user as UsuarioSessao;
+    const isAdminMestre = ehAdministradorMestre(usuario);
 
-    // Buscar estatísticas do banco de dados
-    const [totalCondominios, usuariosAtivos, totalVagas, vagasOcupadas] = await Promise.all([
-      // Total de condomínios
-      prisma.condominio.count(),
-      
-      // Usuários ativos (com perfil ativo)
-      prisma.perfilUsuario.count({
-        where: {
-          ativo: true
-        }
-      }),
-      
-      // Total de vagas
-      prisma.vaga.count(),
-      
-      // Vagas ocupadas (que têm proprietário)
-      prisma.vaga.count({
-        where: {
-          proprietarioId: {
-            not: null
+    // Identificar perfil do usuário
+    const perfilPrincipal = usuario.perfis?.[0]?.tipo || 'morador';
+    const condominioIds = usuario.perfis?.map(p => p.condominioId).filter(Boolean) || [];
+
+    if (isAdminMestre) {
+      // ESTATÍSTICAS PARA ADMINISTRADOR MESTRE
+      const [
+        totalCondominios,
+        usuariosAtivos,
+        totalVagas,
+        vagasDisponiveis,
+        totalLocacoes,
+        locacoesAtivas,
+        locacoesPendentes,
+        locacoesHoje,
+        locacoesSemana,
+        locacoesMes,
+        receitaTotal,
+        usuariosPorMes
+      ] = await Promise.all([
+        prisma.condominio.count(),
+        prisma.perfilUsuario.count({ where: { ativo: true } }),
+        prisma.vaga.count(),
+        prisma.vaga.count({
+          where: {
+            configuracaoLocacao: { disponivel: true }
           }
+        }),
+        prisma.locacao.count(),
+        prisma.locacao.count({ where: { status: 'ATIVA' } }),
+        prisma.locacao.count({ where: { status: 'PENDENTE' } }),
+        prisma.locacao.count({
+          where: {
+            criadoEm: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+          }
+        }),
+        prisma.locacao.count({
+          where: {
+            criadoEm: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+          }
+        }),
+        prisma.locacao.count({
+          where: {
+            criadoEm: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+          }
+        }),
+        prisma.locacao.aggregate({
+          where: { status: { in: ['ATIVA', 'FINALIZADA'] } },
+          _sum: { valor: true }
+        }),
+        // Usuários criados nos últimos 6 meses (para gráfico)
+        prisma.usuario.groupBy({
+          by: ['criadoEm'],
+          _count: true,
+          where: {
+            criadoEm: { gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) }
+          }
+        })
+      ]);
+
+      // Buscar locações por mês para gráfico
+      const locacoesPorMes = await prisma.$queryRaw`
+        SELECT 
+          DATE_TRUNC('month', "criadoEm") as mes,
+          COUNT(*) as total,
+          SUM(valor) as receita
+        FROM locacoes
+        WHERE "criadoEm" >= NOW() - INTERVAL '6 months'
+        GROUP BY DATE_TRUNC('month', "criadoEm")
+        ORDER BY mes DESC
+      ` as Array<{ mes: Date; total: bigint; receita: number }>;
+
+      // Buscar top condomínios por locações
+      const topCondominios = await prisma.$queryRaw`
+        SELECT 
+          c.nome,
+          COUNT(l.id) as total_locacoes,
+          COALESCE(SUM(l.valor), 0) as receita
+        FROM condominios c
+        LEFT JOIN vagas v ON v."condominioId" = c.id
+        LEFT JOIN locacoes l ON l."vagaId" = v.id
+        GROUP BY c.id, c.nome
+        ORDER BY total_locacoes DESC
+        LIMIT 5
+      ` as Array<{ nome: string; total_locacoes: bigint; receita: number }>;
+
+      return NextResponse.json({
+        perfil: 'administrador_mestre',
+        cards: {
+          totalCondominios,
+          usuariosAtivos,
+          totalVagas,
+          vagasDisponiveis,
+          totalLocacoes,
+          locacoesAtivas,
+          locacoesPendentes,
+          receitaTotal: receitaTotal._sum.valor || 0
+        },
+        metricas: {
+          locacoesHoje,
+          locacoesSemana,
+          locacoesMes,
+          taxaOcupacao: totalVagas > 0 ? Math.round((vagasDisponiveis / totalVagas) * 100) : 0
+        },
+        graficos: {
+          locacoesPorMes: locacoesPorMes.map(l => ({
+            mes: l.mes,
+            total: Number(l.total),
+            receita: l.receita || 0
+          })),
+          topCondominios: topCondominios.map(c => ({
+            nome: c.nome,
+            locacoes: Number(c.total_locacoes),
+            receita: c.receita || 0
+          }))
         }
-      })
-    ]);
+      });
 
-    // Calcular ocupação atual
-    const ocupacaoAtual = totalVagas > 0 
-      ? Math.round((vagasOcupadas / totalVagas) * 100)
-      : 0;
+    } else if (perfilPrincipal === 'sindico' || perfilPrincipal === 'administrador_condominio') {
+      // ESTATÍSTICAS PARA SÍNDICO / ADMIN CONDOMÍNIO
+      const [
+        totalVagas,
+        vagasDisponiveis,
+        totalUnidades,
+        totalMoradores,
+        locacoesAtivas,
+        locacoesPendentes,
+        locacoesMes,
+        receitaMes
+      ] = await Promise.all([
+        prisma.vaga.count({
+          where: { condominioId: { in: condominioIds } }
+        }),
+        prisma.vaga.count({
+          where: {
+            condominioId: { in: condominioIds },
+            configuracaoLocacao: { disponivel: true }
+          }
+        }),
+        prisma.unidade.count({
+          where: { condominioId: { in: condominioIds } }
+        }),
+        prisma.perfilUsuario.count({
+          where: {
+            condominioId: { in: condominioIds },
+            tipo: 'morador',
+            ativo: true
+          }
+        }),
+        prisma.locacao.count({
+          where: {
+            status: 'ATIVA',
+            vaga: { condominioId: { in: condominioIds } }
+          }
+        }),
+        prisma.locacao.count({
+          where: {
+            status: 'PENDENTE',
+            vaga: { condominioId: { in: condominioIds } }
+          }
+        }),
+        prisma.locacao.count({
+          where: {
+            criadoEm: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+            vaga: { condominioId: { in: condominioIds } }
+          }
+        }),
+        prisma.locacao.aggregate({
+          where: {
+            status: { in: ['ATIVA', 'FINALIZADA'] },
+            criadoEm: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+            vaga: { condominioId: { in: condominioIds } }
+          },
+          _sum: { valor: true }
+        })
+      ]);
 
-    const estatisticas: EstatisticasDashboard = {
-      totalCondominios,
-      usuariosAtivos,
-      totalVagas,
-      vagasOcupadas,
-      ocupacaoAtual,
-      vagasDisponiveis: totalVagas - vagasOcupadas,
-      // Estatísticas adicionais que podem ser implementadas futuramente
-      solicitacoesPendentes: 0,
-      alertasAtivos: 0,
-      manutencoesProgramadas: 0
-    };
+      return NextResponse.json({
+        perfil: 'sindico',
+        cards: {
+          totalVagas,
+          vagasDisponiveis,
+          totalUnidades,
+          totalMoradores,
+          locacoesAtivas,
+          locacoesPendentes
+        },
+        metricas: {
+          locacoesMes,
+          receitaMes: receitaMes._sum.valor || 0,
+          taxaOcupacao: totalVagas > 0 ? Math.round(((totalVagas - vagasDisponiveis) / totalVagas) * 100) : 0
+        }
+      });
 
-    return NextResponse.json(estatisticas);
+    } else {
+      // ESTATÍSTICAS PARA MORADOR
+      const [
+        vagasDisponiveis,
+        minhasLocacoesAtivas,
+        minhasLocacoesPendentes,
+        minhasVagasAlugadas,
+        totalGastoMes,
+        totalRecebidoMes
+      ] = await Promise.all([
+        // Vagas disponíveis para locação nos condomínios do usuário
+        prisma.vaga.count({
+          where: {
+            condominioId: { in: condominioIds },
+            configuracaoLocacao: { disponivel: true },
+            proprietarioId: { not: usuario.id } // Não mostrar próprias vagas
+          }
+        }),
+        // Minhas locações ativas (como locatário)
+        prisma.locacao.count({
+          where: {
+            locatarioId: usuario.id,
+            status: 'ATIVA'
+          }
+        }),
+        // Minhas locações pendentes (como locatário)
+        prisma.locacao.count({
+          where: {
+            locatarioId: usuario.id,
+            status: 'PENDENTE'
+          }
+        }),
+        // Minhas vagas alugadas (como proprietário)
+        prisma.locacao.count({
+          where: {
+            proprietarioId: usuario.id,
+            status: 'ATIVA'
+          }
+        }),
+        // Total gasto no mês (como locatário)
+        prisma.locacao.aggregate({
+          where: {
+            locatarioId: usuario.id,
+            status: { in: ['ATIVA', 'FINALIZADA'] },
+            criadoEm: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+          },
+          _sum: { valor: true }
+        }),
+        // Total recebido no mês (como proprietário)
+        prisma.locacao.aggregate({
+          where: {
+            proprietarioId: usuario.id,
+            status: { in: ['ATIVA', 'FINALIZADA'] },
+            criadoEm: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+          },
+          _sum: { valor: true }
+        })
+      ]);
+
+      // Buscar total de vagas nos condomínios do usuário
+      const totalVagasCondominio = await prisma.vaga.count({
+        where: { condominioId: { in: condominioIds } }
+      });
+
+      return NextResponse.json({
+        perfil: 'morador',
+        cards: {
+          vagasDisponiveis,
+          minhasLocacoesAtivas,
+          minhasLocacoesPendentes,
+          minhasVagasAlugadas
+        },
+        metricas: {
+          totalGastoMes: totalGastoMes._sum.valor || 0,
+          totalRecebidoMes: totalRecebidoMes._sum.valor || 0,
+          taxaOcupacao: totalVagasCondominio > 0 
+            ? Math.round(((totalVagasCondominio - vagasDisponiveis) / totalVagasCondominio) * 100) 
+            : 0
+        }
+      });
+    }
+
   } catch (error) {
     console.error('Erro ao buscar estatísticas do dashboard:', error);
     return NextResponse.json(

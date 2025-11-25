@@ -51,6 +51,7 @@ interface ReservaFormProps {
   reservaId?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
+  condominioPreSelecionado?: string;
 }
 
 export default function ReservaForm({ 
@@ -60,12 +61,13 @@ export default function ReservaForm({
   onVagasDisponiveisChange,
   reservaId, 
   onSuccess, 
-  onCancel 
+  onCancel,
+  condominioPreSelecionado = ''
 }: ReservaFormProps) {
   const [formData, setFormData] = useState({
     vagaId: '',
     usuarioId: '',
-    condominioId: '',
+    condominioId: condominioPreSelecionado,
     dataInicio: '',
     horaInicio: '',
     dataFim: '',

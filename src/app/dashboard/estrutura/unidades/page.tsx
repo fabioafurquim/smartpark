@@ -9,11 +9,17 @@ interface Unidade {
   id: string;
   numero: string;
   andar: number;
-  tipo: 'APARTAMENTO' | 'COBERTURA' | 'LOJA' | 'SALA';
+  tipo: 'APARTAMENTO' | 'COBERTURA' | 'LOJA' | 'SALA_COMERCIAL';
   proprietario?: string;
   contato?: string;
   torreId: string;
   condominioId: string;
+  usuarioId?: string;
+  usuario?: {
+    id: string;
+    nome: string;
+    email: string;
+  };
   torre: {
     id: string;
     nome: string;
@@ -39,7 +45,8 @@ interface Torre {
 interface UnidadeFormData {
   numero: string;
   andar: number;
-  tipo: 'APARTAMENTO' | 'COBERTURA' | 'LOJA' | 'SALA';
+  tipo: 'APARTAMENTO' | 'COBERTURA' | 'LOJA' | 'SALA_COMERCIAL';
+
   proprietario?: string;
   contato?: string;
   torreId: string;
@@ -176,7 +183,8 @@ export default function UnidadesPage() {
         setError('');
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Erro ao excluir unidade');
+        const mensagem = errorData.details || errorData.error || 'Erro ao excluir unidade';
+        setError(mensagem);
       }
     } catch (error) {
       console.error('Erro ao excluir unidade:', error);
@@ -212,7 +220,7 @@ export default function UnidadesPage() {
         return 'bg-purple-100 text-purple-800';
       case 'LOJA':
         return 'bg-green-100 text-green-800';
-      case 'SALA':
+      case 'SALA_COMERCIAL':
         return 'bg-orange-100 text-orange-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -362,6 +370,9 @@ export default function UnidadesPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Contato
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Morador Associado
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Ações
                   </th>
@@ -402,6 +413,16 @@ export default function UnidadesPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {unidade.contato || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {unidade.usuario ? (
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-900">{unidade.usuario.nome}</span>
+                          <span className="text-xs text-gray-500">{unidade.usuario.email}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">-</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">

@@ -11,9 +11,7 @@ const torreSchema = z.object({
     .min(2, 'Nome deve ter pelo menos 2 caracteres')
     .max(100, 'Nome deve ter no máximo 100 caracteres')
     .trim(),
-  tipo: z.enum(['TORRE', 'BLOCO'], {
-    errorMap: () => ({ message: 'Tipo deve ser TORRE ou BLOCO' })
-  }),
+  tipo: z.enum(['TORRE', 'BLOCO'], 'Tipo deve ser TORRE ou BLOCO'),
   condominioId: z.string()
     .min(1, 'Condomínio é obrigatório')
     .regex(/^c[a-z0-9]{24}$/, 'ID do condomínio deve ser um CUID válido')
@@ -62,7 +60,7 @@ export async function GET(request: NextRequest) {
       if (condominioId) {
         if (!condominioIds.includes(condominioId)) {
           return NextResponse.json(
-            { erro: 'Acesso negado ao condomínio especificado' },
+            { error: 'Acesso negado ao condomínio especificado' },
             { status: 403 }
           );
         }
@@ -99,7 +97,7 @@ export async function GET(request: NextRequest) {
       condominioId: torre.condominioId,
       condominio: torre.condominio,
       totalUnidades: torre._count.unidades,
-      createdAt: torre.criadoEm.toISOString()
+      criadoEm: torre.criadoEm.toISOString()
     }));
 
     return NextResponse.json(torresFormatadas);
@@ -128,7 +126,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             error: 'Dados inválidos',
-            detalhes: validation.error.format()
+            details: validation.error.format()
           },
           { status: 400 }
         );
@@ -160,26 +158,31 @@ export async function POST(request: NextRequest) {
         // Para outros usuários, verificar permissões normalmente
         const condominioIds = condominiosPermitidos.map(c => c.id);
 
-      // Verificar se o usuário tem permissão para o condomínio
-      if (!condominioIds.includes(bodyCondominioId)) {
-        return NextResponse.json(
-          { erro: 'Acesso negado ao condomínio especificado' },
-          { status: 403 }
-        );
-      }
+        // Verificar se o usuário tem permissão para o condomínio
+        if (!condominioIds.includes(bodyCondominioId)) {
+          return NextResponse.json(
+            { 
+              error: {
+                code: 'FORBIDDEN',
+                message: 'Acesso negado ao condomínio especificado'
+              }
+            },
+            { status: 403 }
+          );
+        }
 
-      // Verificar se o condomínio existe
-      const condominio = await prisma.condominio.findUnique({
-        where: { id: bodyCondominioId }
-      });
+        // Verificar se o condomínio existe
+        const condominio = await prisma.condominio.findUnique({
+          where: { id: bodyCondominioId }
+        });
 
-      if (!condominio) {
-        return NextResponse.json(
-          { error: 'Condomínio não encontrado' },
-          { status: 404 }
-        );
+        if (!condominio) {
+          return NextResponse.json(
+            { error: 'Condomínio não encontrado' },
+            { status: 404 }
+          );
+        }
       }
-    }
 
     // Verificar se já existe torre/bloco com mesmo nome no condomínio
     const torreExistente = await prisma.torre.findFirst({
@@ -232,7 +235,7 @@ export async function POST(request: NextRequest) {
       condominioId: novaTorre.condominioId,
       condominio: novaTorre.condominio,
       totalUnidades: novaTorre._count.unidades,
-      createdAt: novaTorre.criadoEm.toISOString()
+      criadoEm: novaTorre.criadoEm.toISOString()
     };
 
     console.log('🔍 DEBUG API - Torre criada com sucesso:', torreFormatada);

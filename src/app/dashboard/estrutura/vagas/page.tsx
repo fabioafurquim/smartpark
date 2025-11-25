@@ -10,7 +10,7 @@ import { Button } from '@/components/ui';
 interface Vaga {
   id: string;
   numero: string;
-  tipo: 'COBERTA' | 'DESCOBERTA' | 'DEFICIENTE';
+  tipo: 'COBERTA' | 'DESCOBERTA' | 'DEFICIENTE' | 'IDOSO' | 'VISITANTE';
   ocupada: boolean;
   condominioId?: string;
   unidade?: {
@@ -24,7 +24,7 @@ interface Vaga {
     id: string;
     nome: string;
   };
-  createdAt: string;
+  criadoEm: string;
 }
 
 interface VagaFormData {
@@ -32,7 +32,7 @@ interface VagaFormData {
   tipo: 'COBERTA' | 'DESCOBERTA' | 'DEFICIENTE' | 'IDOSO' | 'VISITANTE';
   unidadeId: string;
   condominioId?: string;
-  proprietarioId?: string;
+  proprietarioId?: string | null;
 }
 
 /**
@@ -55,12 +55,12 @@ export default function VagasPage() {
         const response = await fetch('/api/condominios');
         if (response.ok) {
           const dados = await response.json();
+          console.log('📦 Dados da API de condomínios:', dados);
           // Acessar dados.condominios corretamente da estrutura da API
           const condominiosList = dados.condominios || [];
+          console.log('🏢 Condomínios carregados:', condominiosList);
           setCondominios(condominiosList);
-          if (condominiosList.length > 0) {
-            setCondominioSelecionado(condominiosList[0].id);
-          }
+          // Não selecionar automaticamente - deixar o usuário escolher
         } else {
           console.error('Erro ao carregar condomínios:', response.status);
         }
@@ -76,35 +76,70 @@ export default function VagasPage() {
   const handleSalvarVaga = async (dadosVaga: VagaFormData) => {
     setSalvando(true);
     try {
+      const condominioId = dadosVaga.condominioId ?? condominioSelecionado;
+
+      if (!condominioId) {
+        console.error('Nenhum condomínio selecionado para salvar a vaga.');
+        alert('Selecione um condomínio antes de salvar a vaga.');
+        return;
+      }
+
       const url = vagaEditando ? `/api/vagas/${vagaEditando.id}` : '/api/vagas';
       const method = vagaEditando ? 'PUT' : 'POST';
       
+      // Construir payload, excluindo proprietarioId se vazio
+      const payload: any = {
+        numero: dadosVaga.numero,
+        tipo: dadosVaga.tipo,
+        unidadeId: dadosVaga.unidadeId,
+        condominioId,
+      };
+      
+      // Apenas incluir proprietarioId se fornecido
+      if (dadosVaga.proprietarioId) {
+        payload.proprietarioId = dadosVaga.proprietarioId;
+      }
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...dadosVaga,
-          condominioId: condominioSelecionado,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        // Recarregar vagas
-        const vagasResponse = await fetch(`/api/vagas?condominioId=${condominioSelecionado}`);
+        const vagasResponse = await fetch(`/api/vagas?condominioId=${condominioId}`);
         if (vagasResponse.ok) {
           const vagasData = await vagasResponse.json();
           setVagas(vagasData);
         }
-        
+
         setModalAberto(false);
         setVagaEditando(null);
+        alert('Vaga salva com sucesso!');
       } else {
-        console.error('Erro ao salvar vaga');
+        let mensagem = 'Erro ao salvar vaga';
+        try {
+          const erro = await response.json();
+          mensagem = erro?.error || erro?.erro || erro?.message || mensagem;
+          if (erro?.details) {
+            console.error('Detalhes do erro:', erro.details);
+          }
+        } catch (parseError) {
+          console.error('Falha ao ler resposta de erro ao salvar vaga:', parseError);
+        }
+
+        console.error('Erro ao salvar vaga:', {
+          status: response.status,
+          mensagem,
+          payload,
+        });
+        alert(`Erro ao salvar vaga: ${mensagem}`);
       }
     } catch (error) {
       console.error('Erro ao salvar vaga:', error);
+      alert('Erro ao salvar vaga. Verifique os dados e tente novamente.');
     } finally {
       setSalvando(false);
     }
@@ -147,10 +182,15 @@ export default function VagasPage() {
   };
 
   useEffect(() => {
-    if (!condominioSelecionado) return;
+    if (!condominioSelecionado) {
+      setCarregando(false);
+      setVagas([]);
+      return;
+    }
 
     const carregarVagas = async () => {
       try {
+        setCarregando(true);
         const response = await fetch(`/api/vagas?condominioId=${condominioSelecionado}`);
         if (response.ok) {
           const dados = await response.json();
@@ -180,7 +220,9 @@ export default function VagasPage() {
     livres: vagas.filter(v => !v.ocupada).length,
     cobertas: vagas.filter(v => v.tipo === 'COBERTA').length,
     descobertas: vagas.filter(v => v.tipo === 'DESCOBERTA').length,
-    deficientes: vagas.filter(v => v.tipo === 'DEFICIENTE').length
+    deficientes: vagas.filter(v => v.tipo === 'DEFICIENTE').length,
+    idosos: vagas.filter(v => v.tipo === 'IDOSO').length,
+    visitantes: vagas.filter(v => v.tipo === 'VISITANTE').length,
   };
 
   if (carregando) {

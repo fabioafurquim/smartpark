@@ -8,7 +8,7 @@ import { z } from 'zod';
 const createTorreSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório'),
   descricao: z.string().optional(),
-  tipo: z.enum(['torre', 'bloco'])
+  tipo: z.enum(['TORRE', 'BLOCO'], 'Tipo deve ser TORRE ou BLOCO')
 });
 
 /**
@@ -170,7 +170,7 @@ export async function POST(
 
     if (torreExistente) {
       return NextResponse.json(
-        { error: `Já existe um(a) ${tipo} com este nome neste condomínio` },
+        { error: `Já existe um(a) ${tipo === 'TORRE' ? 'TORRE' : 'BLOCO'} com este nome neste condomínio` },
         { status: 409 }
       );
     }

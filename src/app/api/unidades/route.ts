@@ -8,11 +8,14 @@ import { UsuarioSessao } from '../../../types';
 const unidadeSchema = z.object({
   numero: z.string().min(1, 'Número é obrigatório'),
   tipo: z.enum(['APARTAMENTO', 'SALA_COMERCIAL', 'LOJA', 'COBERTURA']),
-  proprietario: z.string().min(1, 'Proprietário é obrigatório'),
+  proprietario: z.string().min(1).optional(),
   telefone: z.string().optional(),
   email: z.string().email('Email inválido').optional(),
   torreId: z.string().min(1, 'Torre é obrigatória'),
-  condominioId: z.string().min(1, 'Condomínio é obrigatório')
+  condominioId: z.string().min(1, 'Condomínio é obrigatório'),
+  usuarioId: z.string().optional().nullable(),
+  andar: z.number().optional(),
+  contato: z.string().optional()
 });
 
 /**
@@ -30,7 +33,7 @@ export async function GET(request: NextRequest) {
       if (condominioId) where.condominioId = condominioId;
       if (torreId) where.torreId = torreId;
 
-      const unidades = await prisma.unidade.findMany({
+      const unidadesComRelacoes = await prisma.unidade.findMany({
         where,
         include: {
           condominio: {
@@ -60,19 +63,21 @@ export async function GET(request: NextRequest) {
       });
 
       // Transformar dados para incluir totalVagas
-      const unidadesFormatadas = unidades.map(unidade => ({
+      const unidadesFormatadas = unidadesComRelacoes.map(unidade => ({
         id: unidade.id,
         numero: unidade.numero,
         andar: unidade.andar,
         tipo: unidade.tipo,
         proprietario: unidade.proprietario,
+        contato: unidade.contato,
         condominioId: unidade.condominioId,
         torreId: unidade.torreId,
+        usuarioId: unidade.usuarioId,
         condominio: unidade.condominio,
         torre: unidade.torre,
         totalVagas: unidade._count.vagas,
-        criadoEm: unidade.criadoEm,
-        atualizadoEm: unidade.atualizadoEm
+        criadoEm: unidade.criadoEm.toISOString(),
+        atualizadoEm: unidade.atualizadoEm.toISOString()
       }));
 
       return NextResponse.json(unidadesFormatadas);
@@ -139,14 +144,62 @@ export async function POST(request: NextRequest) {
       });
 
       if (unidadeExistente) {
+        console.error('🔴 Unidade duplicada encontrada:', {
+          numero: validatedData.numero,
+          torreId: validatedData.torreId,
+          unidadeExistenteId: unidadeExistente.id,
+          unidadeExistenteCondominioId: unidadeExistente.condominioId
+        });
         return NextResponse.json(
-          { error: 'Já existe uma unidade com este número nesta torre/bloco' },
+          { 
+            error: 'Já existe uma unidade com este número nesta torre/bloco',
+            details: `Unidade ${unidadeExistente.numero} já existe na torre`
+          },
           { status: 400 }
         );
       }
 
+      // Validar usuarioId se fornecido
+      if (validatedData.usuarioId) {
+        const usuario = await prisma.usuario.findUnique({
+          where: { id: validatedData.usuarioId }
+        });
+
+        if (!usuario) {
+          return NextResponse.json(
+            { error: 'Usuário não encontrado' },
+            { status: 404 }
+          );
+        }
+
+        // Verificar se o usuário tem perfil de morador no condomínio
+        const perfilMorador = await prisma.perfilUsuario.findFirst({
+          where: {
+            usuarioId: validatedData.usuarioId,
+            condominioId: validatedData.condominioId,
+            tipo: 'morador'
+          }
+        });
+
+        if (!perfilMorador) {
+          return NextResponse.json(
+            { error: 'Usuário não é um morador deste condomínio' },
+            { status: 400 }
+          );
+        }
+      }
+
       const novaUnidade = await prisma.unidade.create({
-        data: validatedData,
+        data: {
+          numero: validatedData.numero,
+          tipo: validatedData.tipo,
+          proprietario: validatedData.proprietario,
+          contato: validatedData.contato,
+          torreId: validatedData.torreId,
+          condominioId: validatedData.condominioId,
+          usuarioId: validatedData.usuarioId || null,
+          andar: validatedData.andar || 0
+        },
         include: {
           condominio: {
             select: {
@@ -159,6 +212,13 @@ export async function POST(request: NextRequest) {
               id: true,
               nome: true,
               tipo: true
+            }
+          },
+          usuario: {
+            select: {
+              id: true,
+              nome: true,
+              email: true
             }
           },
           _count: {
@@ -175,13 +235,16 @@ export async function POST(request: NextRequest) {
         andar: novaUnidade.andar,
         tipo: novaUnidade.tipo,
         proprietario: novaUnidade.proprietario,
+        contato: novaUnidade.contato,
         condominioId: novaUnidade.condominioId,
         torreId: novaUnidade.torreId,
+        usuarioId: novaUnidade.usuarioId,
+        usuario: novaUnidade.usuario,
         condominio: novaUnidade.condominio,
         torre: novaUnidade.torre,
         totalVagas: novaUnidade._count.vagas,
-        criadoEm: novaUnidade.criadoEm,
-        atualizadoEm: novaUnidade.atualizadoEm
+        criadoEm: novaUnidade.criadoEm.toISOString(),
+        atualizadoEm: novaUnidade.atualizadoEm.toISOString()
       };
 
       return NextResponse.json(unidadeFormatada, { status: 201 });

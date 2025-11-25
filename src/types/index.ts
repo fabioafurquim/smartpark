@@ -46,16 +46,33 @@ export interface Unidade {
   vagas?: Vaga[];
 }
 
+export interface ConfiguracaoLocacaoVaga {
+  id: string;
+  vagaId: string;
+  disponivel: boolean;
+  tiposPermitidos: TipoLocacao[];
+  valorHora: number | null;
+  valorDiaria: number | null;
+  valorMensal: number | null;
+  valorAnual: number | null;
+  criadoEm: string;
+  atualizadoEm: string;
+}
+
 export interface Vaga {
   id: string;
   numero: string;
-  tipo: 'comum' | 'deficiente' | 'idoso';
+  tipo: 'COBERTA' | 'DESCOBERTA' | 'DEFICIENTE' | 'IDOSO' | 'VISITANTE';
   unidadeId: string;
   proprietarioId?: string;
-  criadoEm: Date;
-  atualizadoEm: Date;
+  condominioId: string;
+  criadoEm: string;
+  atualizadoEm: string;
   unidade?: Unidade;
+  condominio?: Condominio;
   proprietario?: Usuario;
+  configuracaoLocacao?: ConfiguracaoLocacaoVaga | null;
+  ocupada?: boolean;
 }
 
 export interface PerfilUsuario {
@@ -107,9 +124,29 @@ export type StatusSolicitacao =
   | 'rejeitado';
 
 export type TipoVaga = 
-  | 'comum'
-  | 'deficiente'
-  | 'idoso';
+  | 'COBERTA'
+  | 'DESCOBERTA'
+  | 'DEFICIENTE'
+  | 'IDOSO'
+  | 'VISITANTE';
+
+export type TipoLocacao = 
+  | 'HORA'
+  | 'DIARIA'
+  | 'MENSAL'
+  | 'ANUAL';
+
+export type StatusReserva = 
+  | 'ativa'
+  | 'cancelada'
+  | 'expirada'
+  | 'concluida';
+
+export type StatusPagamento = 
+  | 'PENDENTE'
+  | 'CONFIRMADO'
+  | 'CANCELADO'
+  | 'REEMBOLSADO';
 
 // Tipos para formulários
 export interface FormularioUsuario {
@@ -152,6 +189,45 @@ export interface FormularioVaga {
   numero: string;
   tipo: TipoVaga;
   unidadeId: string;
+  proprietarioId?: string;
+}
+
+export interface Reserva {
+  id: string;
+  vagaId: string;
+  usuarioId: string;
+  condominioId: string;
+  dataInicio: string;
+  dataFim: string;
+  tipoLocacao?: TipoLocacao;
+  valor?: number | null;
+  status: StatusReserva;
+  statusPagamento: StatusPagamento;
+  observacoes?: string;
+  criadoEm: string;
+  atualizadoEm: string;
+  vaga?: Vaga;
+  usuario?: Usuario;
+  condominio?: Condominio;
+}
+
+export interface FormularioConfiguracaoLocacao {
+  disponivel: boolean;
+  tiposPermitidos: TipoLocacao[];
+  valorHora?: number | null;
+  valorDiaria?: number | null;
+  valorMensal?: number | null;
+  valorAnual?: number | null;
+}
+
+export interface FormularioReserva {
+  vagaId: string;
+  usuarioId: string;
+  condominioId: string;
+  dataInicio: string;
+  dataFim: string;
+  tipoLocacao?: TipoLocacao;
+  observacoes?: string;
 }
 
 export interface FormularioSolicitacaoCadastro {

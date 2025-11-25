@@ -72,7 +72,8 @@ export default function AdminCondominiosPage() {
       const response = await fetch(`/api/admin/condominios?${params}`);
       if (response.ok) {
         const dados = await response.json();
-        setCondominios(dados);
+        const lista = Array.isArray(dados) ? dados : dados.condominios;
+        setCondominios(Array.isArray(lista) ? lista : []);
       }
     } catch (error) {
       console.error('Erro ao buscar condomínios:', error);
@@ -112,23 +113,30 @@ export default function AdminCondominiosPage() {
         alert('Condomínio criado com sucesso!');
       } else {
         const erro = await response.json();
-        if (erro.detalhes) {
+        const detalhes = erro.detalhes ?? erro.details;
+        if (Array.isArray(detalhes)) {
           const novosErros: Record<string, string> = {};
-          erro.detalhes.forEach((d: any) => {
-            novosErros[d.campo] = d.mensagem;
+          detalhes.forEach((d: any) => {
+            if (d.campo && d.mensagem) {
+              novosErros[d.campo] = d.mensagem;
+            } else if (d.path?.length) {
+              novosErros[d.path[0]] = d.message ?? d.mensagem ?? '';
+            }
           });
           setErrosValidacao(novosErros);
         } else {
-          alert(erro.erro || 'Erro ao criar condomínio');
+          alert(erro.error || erro.erro || 'Erro ao criar condomínio');
         }
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
         // Erros de validação do Zod
         const novosErros: Record<string, string> = {};
-        error.errors.forEach((erro) => {
-          if (erro.path && erro.path.length > 0) {
-            novosErros[erro.path[0]] = erro.message;
+        error.issues.forEach((erro) => {
+          const caminho = erro.path && erro.path.length > 0 ? erro.path[0] : undefined;
+          if (caminho !== undefined) {
+            const chave = typeof caminho === 'string' ? caminho : String(caminho);
+            novosErros[chave] = erro.message;
           }
         });
         setErrosValidacao(novosErros);
@@ -174,23 +182,30 @@ export default function AdminCondominiosPage() {
         alert('Condomínio atualizado com sucesso!');
       } else {
         const erro = await response.json();
-        if (erro.detalhes) {
+        const detalhes = erro.detalhes ?? erro.details;
+        if (Array.isArray(detalhes)) {
           const novosErros: Record<string, string> = {};
-          erro.detalhes.forEach((d: any) => {
-            novosErros[d.campo] = d.mensagem;
+          detalhes.forEach((d: any) => {
+            if (d.campo && d.mensagem) {
+              novosErros[d.campo] = d.mensagem;
+            } else if (d.path?.length) {
+              novosErros[d.path[0]] = d.message ?? d.mensagem ?? '';
+            }
           });
           setErrosValidacao(novosErros);
         } else {
-          alert(erro.erro || 'Erro ao atualizar condomínio');
+          alert(erro.error || erro.erro || 'Erro ao atualizar condomínio');
         }
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
         // Erros de validação do Zod
         const novosErros: Record<string, string> = {};
-        error.errors.forEach((erro) => {
-          if (erro.path && erro.path.length > 0) {
-            novosErros[erro.path[0]] = erro.message;
+        error.issues.forEach((erro) => {
+          const caminho = erro.path && erro.path.length > 0 ? erro.path[0] : undefined;
+          if (caminho !== undefined) {
+            const chave = typeof caminho === 'string' ? caminho : String(caminho);
+            novosErros[chave] = erro.message;
           }
         });
         setErrosValidacao(novosErros);
@@ -228,7 +243,7 @@ export default function AdminCondominiosPage() {
         setModalExclusao({ aberto: false });
       } else {
         const erro = await response.json();
-        alert(erro.erro || 'Erro ao excluir condomínio');
+        alert(erro.error || erro.erro || 'Erro ao excluir condomínio');
       }
     } catch (error) {
       console.error('Erro ao excluir condomínio:', error);
@@ -246,7 +261,7 @@ export default function AdminCondominiosPage() {
     {
       chave: 'nome' as keyof Condominio,
       titulo: 'Nome',
-      renderizar: (condominio: Condominio) => {
+      renderizar: (_: unknown, condominio: Condominio) => {
         if (!condominio) return null;
         return (
           <div className="flex items-center space-x-3">
@@ -269,7 +284,7 @@ export default function AdminCondominiosPage() {
     {
       chave: 'contato' as keyof Condominio,
       titulo: 'Contato',
-      renderizar: (condominio: Condominio) => {
+      renderizar: (_: unknown, condominio: Condominio) => {
         if (!condominio) return null;
         return (
           <div className="text-sm">
@@ -292,7 +307,7 @@ export default function AdminCondominiosPage() {
     {
       chave: 'estatisticas' as keyof Condominio,
       titulo: 'Estatísticas',
-      renderizar: (condominio: Condominio) => {
+      renderizar: (_: unknown, condominio: Condominio) => {
         if (!condominio) return null;
         return (
           <div className="text-sm">
@@ -311,7 +326,7 @@ export default function AdminCondominiosPage() {
     {
       chave: 'ativo' as keyof Condominio,
       titulo: 'Status',
-      renderizar: (condominio: Condominio) => {
+      renderizar: (_: unknown, condominio: Condominio) => {
         if (!condominio) return null;
         return (
           <span
@@ -330,7 +345,7 @@ export default function AdminCondominiosPage() {
     {
       chave: 'acoes' as keyof Condominio,
       titulo: 'Ações',
-      renderizar: (condominio: Condominio) => {
+      renderizar: (_: unknown, condominio: Condominio) => {
         if (!condominio) return null;
         return (
           <div className="flex items-center space-x-2">
