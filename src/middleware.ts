@@ -28,36 +28,10 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    // Verificar se o sistema foi configurado
-    // Usar localhost para funcionar no Next.js standalone
-    const apiUrl = `http://localhost:3000/api/configuracao-inicial`;
-    const configResponse = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!configResponse.ok) {
-      console.error('Erro ao verificar configuração do sistema');
-      // Em caso de erro, permitir acesso (fail open)
-      return NextResponse.next();
-    }
-
-    const { configurado } = await configResponse.json();
-
-    // Se o sistema não foi configurado
-    if (!configurado) {
-      // Redirecionar para configuração inicial
-      if (pathname !== '/configuracao-inicial') {
-        return NextResponse.redirect(new URL('/configuracao-inicial', request.url));
-      }
-      return NextResponse.next();
-    }
-
-    // Se o sistema foi configurado, não permitir acesso à configuração inicial
+    // Permitir acesso livre à página de configuração inicial
+    // A própria página fará a verificação se o sistema já foi configurado
     if (pathname === '/configuracao-inicial') {
-      return NextResponse.redirect(new URL('/login', request.url));
+      return NextResponse.next();
     }
 
     // Verificar autenticação para rotas protegidas
