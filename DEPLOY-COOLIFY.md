@@ -81,17 +81,14 @@ openssl rand -base64 32
 
 ### 5. Criar Database no PostgreSQL
 
-**Se usar banco existente:**
+**✅ Database já criado!**
 
+O database `smartpark` já foi criado no PostgreSQL existente.
+
+Para verificar:
 ```bash
-# Conectar no container do PostgreSQL
-docker exec -it CONTAINER_ID_POSTGRES psql -U postgres
-
-# Criar database
-CREATE DATABASE smartpark;
-
-# Sair
-\q
+ssh root@187.77.57.122
+docker exec jk4ss8ssocc4owows0csw4kg psql -U postgres -c '\l'
 ```
 
 ### 6. Configurar Build Command (Opcional)
