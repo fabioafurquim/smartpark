@@ -17,9 +17,9 @@ type TipoPerfilUsuario =
 export async function POST(request: NextRequest) {
   try {
     // Verificar se o sistema já foi configurado
-    const sistemaConfigurado = await prisma.configuracaoSistema.findFirst();
+    const configuracaoExistente = await prisma.configuracaoSistema.findFirst();
     
-    if (sistemaConfigurado) {
+    if (configuracaoExistente && configuracaoExistente.administradorMestreConfigurado) {
       return NextResponse.json(
         { erro: 'Sistema já foi configurado' },
         { status: 400 }
@@ -77,12 +77,19 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 4. Criar configuração do sistema
-      const configuracao = await tx.configuracaoSistema.create({
-        data: {
-          administradorMestreConfigurado: true,
-        },
-      });
+      // 4. Atualizar ou criar configuração do sistema
+      const configuracao = configuracaoExistente
+        ? await tx.configuracaoSistema.update({
+            where: { id: configuracaoExistente.id },
+            data: {
+              administradorMestreConfigurado: true,
+            },
+          })
+        : await tx.configuracaoSistema.create({
+            data: {
+              administradorMestreConfigurado: true,
+            },
+          });
 
       return {
         usuario: novoUsuario,
