@@ -64,12 +64,12 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
-    // Redirecionar root para dashboard se autenticado, senão para login
+    // Redirecionar root para configuração inicial ou login
     if (pathname === '/') {
       if (token) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       } else {
-        return NextResponse.redirect(new URL('/login', request.url));
+        return NextResponse.redirect(new URL('/configuracao-inicial', request.url));
       }
     }
 
