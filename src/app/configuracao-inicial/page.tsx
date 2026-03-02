@@ -25,31 +25,7 @@ export default function ConfiguracaoInicial() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState(false);
-  const [verificandoConfiguracao, setVerificandoConfiguracao] = useState(true);
   const router = useRouter();
-
-  // Verifica se o sistema já foi configurado
-  useEffect(() => {
-    const verificarConfiguracao = async () => {
-      try {
-        const response = await fetch('/api/configuracao-inicial');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.configurado) {
-            // Sistema já configurado, redireciona para login
-            router.push('/login?jaConfigurado=true');
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao verificar configuração:', error);
-      } finally {
-        setVerificandoConfiguracao(false);
-      }
-    };
-
-    verificarConfiguracao();
-  }, [router]);
 
   const {
     register,
@@ -122,27 +98,6 @@ export default function ConfiguracaoInicial() {
 
 
 
-
-  // Tela de loading enquanto verifica configuração
-  if (verificandoConfiguracao) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <Loader2 className="w-16 h-16 text-blue-600 mx-auto animate-spin" />
-              <h2 className="text-2xl font-bold text-gray-900">
-                Verificando Configuração
-              </h2>
-              <p className="text-gray-600">
-                Aguarde enquanto verificamos se o sistema já foi configurado...
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (sucesso) {
     return (
