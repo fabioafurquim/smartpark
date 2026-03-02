@@ -12,6 +12,7 @@ NEXTAUTH_SECRET=GFybjGPasoWoCS08IiPmRO1EgqDtieQTi4Et2br1XpA=
 
 # App
 NODE_ENV=production
+HOSTNAME=0.0.0.0
 
 # ========================================
 # INSTRUÇÕES:
