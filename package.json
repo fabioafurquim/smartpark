@@ -4,8 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "prisma generate && next build",
+    "build:production": "prisma generate && next build",
     "start": "next start",
+    "start:production": "node server.js",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:production": "prisma migrate deploy && prisma generate",
     "lint": "eslint"
   },
   "dependencies": {
