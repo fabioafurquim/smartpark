@@ -5,7 +5,12 @@ nixPkgs = ['nodejs_20', 'openssl']
 cmds = ['npm ci']
 
 [phases.build]
-cmds = ['npx prisma generate', 'npm run build']
+cmds = [
+  'npx prisma generate',
+  'npm run build',
+  'cp -r .next/static .next/standalone/.next/',
+  'cp -r public .next/standalone/'
+]
 
 [start]
-cmd = 'node .next/standalone/server.js'
+cmd = 'cd .next/standalone && node server.js'
