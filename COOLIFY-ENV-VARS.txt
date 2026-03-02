@@ -7,7 +7,7 @@
 DATABASE_URL=postgresql://postgres:eLE1NPit1YQKnVU1o2QTABzxPZ46v9iAHyTlXWNwUxv6CCco1sFi5nOeCVSEHhKp@jk4ss8ssocc4owows0csw4kg:5432/smartpark
 
 # NextAuth
-NEXTAUTH_URL=https://park.furquim.cloud
+NEXTAUTH_URL=https://smartpark.furquim.cloud
 NEXTAUTH_SECRET=GFybjGPasoWoCS08IiPmRO1EgqDtieQTi4Et2br1XpA=
 
 # App
