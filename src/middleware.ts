@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { prisma } from '@/lib/prisma';
 
 /**
  * Middleware para controle de acesso e redirecionamentos
@@ -29,9 +28,23 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    // Verificar se o sistema foi configurado diretamente no banco
-    const config = await prisma.configuracaoSistema.findFirst();
-    const configurado = config?.administradorMestreConfigurado || false;
+    // Verificar se o sistema foi configurado
+    // Usar localhost para funcionar no Next.js standalone
+    const apiUrl = `http://localhost:3000/api/configuracao-inicial`;
+    const configResponse = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!configResponse.ok) {
+      console.error('Erro ao verificar configuração do sistema');
+      // Em caso de erro, permitir acesso (fail open)
+      return NextResponse.next();
+    }
+
+    const { configurado } = await configResponse.json();
 
     // Se o sistema não foi configurado
     if (!configurado) {
