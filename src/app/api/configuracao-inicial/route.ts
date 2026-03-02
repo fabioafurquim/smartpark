@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET() {
   try {
-    const configuracao = await prisma.configuracaoSistema.findFirst({
+    let configuracao = await prisma.configuracaoSistema.findFirst({
       select: {
         id: true,
         administradorMestreConfigurado: true,
@@ -150,9 +150,24 @@ export async function GET() {
       },
     });
 
+    // Se não existe configuração, criar uma com status false
+    if (!configuracao) {
+      configuracao = await prisma.configuracaoSistema.create({
+        data: {
+          administradorMestreConfigurado: false,
+        },
+        select: {
+          id: true,
+          administradorMestreConfigurado: true,
+          criadoEm: true,
+          atualizadoEm: true,
+        },
+      });
+    }
+
     return NextResponse.json({
-      configurado: !!configuracao,
-      dados: configuracao || null,
+      configurado: configuracao.administradorMestreConfigurado,
+      dados: configuracao,
     });
   } catch (error) {
     console.error('Erro ao verificar configuração:', error);
