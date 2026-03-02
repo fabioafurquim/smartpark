@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { prisma } from '@/lib/prisma';
 
 /**
  * Middleware para controle de acesso e redirecionamentos
@@ -15,6 +16,7 @@ export async function middleware(request: NextRequest) {
     '/_next',
     '/favicon.ico',
     '/public',
+    '/configuracao-inicial',
   ];
 
   // Verificar se é uma rota pública
@@ -27,25 +29,13 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    // Verificar se o sistema foi configurado
-    const baseUrl = request.nextUrl.origin;
-    const configResponse = await fetch(`${baseUrl}/api/configuracao-inicial`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!configResponse.ok) {
-      console.error('Erro ao verificar configuração do sistema');
-      return NextResponse.next();
-    }
-
-    const { configurado } = await configResponse.json();
+    // Verificar se o sistema foi configurado diretamente no banco
+    const config = await prisma.configuracaoSistema.findFirst();
+    const configurado = config?.administradorMestreConfigurado || false;
 
     // Se o sistema não foi configurado
     if (!configurado) {
-      // Permitir acesso apenas à página de configuração inicial
+      // Redirecionar para configuração inicial
       if (pathname !== '/configuracao-inicial') {
         return NextResponse.redirect(new URL('/configuracao-inicial', request.url));
       }
