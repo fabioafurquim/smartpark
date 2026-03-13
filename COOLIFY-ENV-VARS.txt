@@ -1,34 +1,16 @@
 # ========================================
-# VARIÁVEIS DE AMBIENTE PARA COOLIFY
-# SmartPark - Configuração de Produção
+# COOLIFY ENV VARS TEMPLATE
+# SmartPark production placeholders only
 # ========================================
 
-# Database PostgreSQL (usando instância existente)
-DATABASE_URL=postgresql://postgres:eLE1NPit1YQKnVU1o2QTABzxPZ46v9iAHyTlXWNwUxv6CCco1sFi5nOeCVSEHhKp@jk4ss8ssocc4owows0csw4kg:5432/smartpark
+# Never commit real credentials to this repository.
+# Configure the real values directly in Coolify.
 
-# NextAuth
-NEXTAUTH_URL=https://smartpark.furquim.cloud
-NEXTAUTH_SECRET=GFybjGPasoWoCS08IiPmRO1EgqDtieQTi4Et2br1XpA=
-
-# App
+DATABASE_URL=postgresql://postgres:CHANGE_ME@POSTGRES_HOST:5432/smartpark
+NEXTAUTH_URL=https://smartpark.seu-dominio.com
+NEXTAUTH_SECRET=GENERATE_WITH_OPENSSL
 NODE_ENV=production
 HOSTNAME=0.0.0.0
 
-# ========================================
-# INSTRUÇÕES:
-# ========================================
-# 1. Copie as variáveis acima
-# 2. No Coolify, vá em "Environment Variables"
-# 3. Cole cada variável (uma por linha)
-# 4. Se escolher outro domínio, altere NEXTAUTH_URL
-# 
-# Domínios sugeridos:
-# - park.furquim.cloud (recomendado)
-# - smartpark.furquim.cloud
-# - estacionamento.furquim.cloud
-# ========================================
-
-# ✅ Database 'smartpark' criado com sucesso!
-# ✅ Senha do PostgreSQL obtida
-# ✅ NEXTAUTH_SECRET gerado
-# ✅ Pronto para configurar no Coolify!
+# Generate NEXTAUTH_SECRET with:
+# openssl rand -base64 32

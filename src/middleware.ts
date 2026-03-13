@@ -7,8 +7,12 @@ import { getToken } from 'next-auth/jwt';
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
-  // Rotas que não precisam de verificação
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+  const temPerfisAtivos = Array.isArray(token?.perfis) && token.perfis.length > 0;
+
   const rotasPublicas = [
     '/api/configuracao-inicial',
     '/api/auth',
@@ -16,61 +20,66 @@ export async function middleware(request: NextRequest) {
     '/favicon.ico',
     '/public',
     '/configuracao-inicial',
+    '/cadastro',
   ];
 
-  // Verificar se é uma rota pública
-  const eRotaPublica = rotasPublicas.some(rota => 
-    pathname.startsWith(rota)
-  );
+  const eRotaPublica = rotasPublicas.some((rota) => pathname.startsWith(rota));
 
   if (eRotaPublica) {
     return NextResponse.next();
   }
 
   try {
-    // Permitir acesso livre à página de configuração inicial
-    // A própria página fará a verificação se o sistema já foi configurado
     if (pathname === '/configuracao-inicial') {
       return NextResponse.next();
     }
 
-    // Verificar autenticação para rotas protegidas
-    const token = await getToken({ 
-      req: request, 
-      secret: process.env.NEXTAUTH_SECRET 
-    });
-
-    // Rotas que requerem autenticação
     const rotasProtegidas = [
       '/dashboard',
       '/condominios',
       '/configuracoes',
       '/relatorios',
+      '/locacao',
+      '/minhas-locacoes',
+      '/minhas-vagas',
+      '/reservas-admin',
+      '/reservas-sindico',
+      '/reservas-vaga',
+      '/solicitacoes',
     ];
 
-    const eRotaProtegida = rotasProtegidas.some(rota => 
-      pathname.startsWith(rota)
-    );
+    const eRotaProtegida = rotasProtegidas.some((rota) => pathname.startsWith(rota));
 
-    // Se é uma rota protegida e não está autenticado
     if (eRotaProtegida && !token) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Se está autenticado e tenta acessar login
-    if (pathname === '/login' && token) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+    if (eRotaProtegida && token && !temPerfisAtivos) {
+      return NextResponse.redirect(new URL('/cadastro/pendente', request.url));
     }
 
-    // Redirecionar root para configuração inicial ou login
+    if (pathname === '/login' && token) {
+      return NextResponse.redirect(
+        new URL(temPerfisAtivos ? '/dashboard' : '/cadastro/pendente', request.url)
+      );
+    }
+
+    if (pathname === '/cadastro' && token) {
+      return NextResponse.redirect(
+        new URL(temPerfisAtivos ? '/dashboard' : '/cadastro/pendente', request.url)
+      );
+    }
+
     if (pathname === '/') {
       if (token) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-      } else {
-        return NextResponse.redirect(new URL('/configuracao-inicial', request.url));
+        return NextResponse.redirect(
+          new URL(temPerfisAtivos ? '/dashboard' : '/cadastro/pendente', request.url)
+        );
       }
+
+      return NextResponse.redirect(new URL('/login', request.url));
     }
 
     return NextResponse.next();
@@ -80,19 +89,8 @@ export async function middleware(request: NextRequest) {
   }
 }
 
-/**
- * Configuração do matcher para definir em quais rotas o middleware deve executar
- */
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api/auth (NextAuth.js routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     '/((?!api/auth|_next/static|_next/image|favicon.ico|public).*)',
   ],
 };

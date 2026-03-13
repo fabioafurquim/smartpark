@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     // Obter condominios permitidos para o usuário
     const condominiosPermitidos = obterCondominiosUsuario(usuario);
     
-    let where: any = {};
+    const where: Record<string, unknown> = {};
 
     // Para administrador mestre, permitir acesso a todos os condomínios
     if (condominiosPermitidos === 'TODOS_CONDOMINIOS') {

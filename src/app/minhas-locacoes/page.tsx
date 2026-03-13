@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Layout } from '@/components';
 import { Car, Calendar, Clock, DollarSign, CheckCircle, XCircle, AlertCircle, User, Building2 } from 'lucide-react';
 
@@ -46,11 +46,7 @@ export default function MinhasLocacoesPage() {
   const [tipoVisualizacao, setTipoVisualizacao] = useState<TipoVisualizacao>('locatario');
   const [filtroStatus, setFiltroStatus] = useState<string>('TODAS');
 
-  useEffect(() => {
-    carregarLocacoes();
-  }, [tipoVisualizacao]);
-
-  const carregarLocacoes = async () => {
+  const carregarLocacoes = useCallback(async () => {
     setCarregando(true);
     try {
       const response = await fetch(`/api/locacoes?tipo=${tipoVisualizacao}`);
@@ -63,7 +59,11 @@ export default function MinhasLocacoesPage() {
     } finally {
       setCarregando(false);
     }
-  };
+  }, [tipoVisualizacao]);
+
+  useEffect(() => {
+    carregarLocacoes();
+  }, [carregarLocacoes]);
 
   const handleAprovar = async (locacaoId: string) => {
     if (!confirm('Confirma a aprovação desta locação?')) return;

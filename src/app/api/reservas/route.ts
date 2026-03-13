@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
+import { getServerSession } from 'next-auth';
 import { z } from 'zod';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import {
+  buildReservaScopeWhere,
+  canAccessCondominio,
+  canManageCondominio,
+  getReservaAccessScope,
+} from '@/lib/reservas-auth';
+import { UsuarioSessao } from '@/types';
 
-// Schema de validação para criação de reserva
 const createReservaSchema = z.object({
-  vagaId: z.string().min(1, 'ID da vaga é obrigatório'),
-  usuarioId: z.string().min(1, 'ID do usuário é obrigatório'),
-  condominioId: z.string().min(1, 'ID do condomínio é obrigatório'),
-  dataInicio: z.string().datetime('Data de início deve ser uma data válida'),
-  dataFim: z.string().datetime('Data de fim deve ser uma data válida'),
+  vagaId: z.string().min(1, 'ID da vaga e obrigatorio'),
+  condominioId: z.string().min(1, 'ID do condominio e obrigatorio'),
+  dataInicio: z.string().datetime('Data de inicio deve ser uma data valida'),
+  dataFim: z.string().datetime('Data de fim deve ser uma data valida'),
   tipoLocacao: z.enum(['HORA', 'DIARIA', 'MENSAL', 'ANUAL']).optional(),
   observacoes: z.string().optional(),
 });
 
-// Schema de validação para listagem de reservas
 const listReservasSchema = z.object({
   condominioId: z.string().optional(),
   usuarioId: z.string().optional(),
@@ -23,40 +29,92 @@ const listReservasSchema = z.object({
   dataFim: z.string().datetime().optional(),
 });
 
+async function getUsuarioAutenticado() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return null;
+  }
+
+  return session.user as UsuarioSessao;
+}
+
 /**
  * GET /api/reservas - Lista reservas com filtros opcionais
  */
 export async function GET(request: NextRequest) {
   try {
+    const usuario = await getUsuarioAutenticado();
+    if (!usuario) {
+      return NextResponse.json(
+        { success: false, error: 'Nao autorizado' },
+        { status: 401 }
+      );
+    }
+
+    const accessScope = getReservaAccessScope(usuario);
     const { searchParams } = new URL(request.url);
     const queryParams = Object.fromEntries(searchParams.entries());
-    
     const validatedParams = listReservasSchema.parse(queryParams);
 
-    const where: any = {};
-    
+    if (
+      validatedParams.condominioId &&
+      !canAccessCondominio(accessScope, validatedParams.condominioId)
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Acesso negado para este condominio' },
+        { status: 403 }
+      );
+    }
+
+    const baseWhere: Record<string, unknown> = {};
+
     if (validatedParams.condominioId) {
-      where.condominioId = validatedParams.condominioId;
+      baseWhere.condominioId = validatedParams.condominioId;
     }
-    
+
     if (validatedParams.usuarioId) {
-      where.usuarioId = validatedParams.usuarioId;
+      const podeFiltrarOutroUsuario =
+        validatedParams.usuarioId === usuario.id ||
+        accessScope.isAdminMestre ||
+        (validatedParams.condominioId
+          ? canManageCondominio(accessScope, validatedParams.condominioId)
+          : accessScope.managedCondominioIds.length > 0);
+
+      if (!podeFiltrarOutroUsuario) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Voce nao pode consultar reservas de outro usuario',
+          },
+          { status: 403 }
+        );
+      }
+
+      baseWhere.usuarioId = validatedParams.usuarioId;
     }
-    
+
     if (validatedParams.vagaId) {
-      where.vagaId = validatedParams.vagaId;
+      baseWhere.vagaId = validatedParams.vagaId;
     }
-    
+
     if (validatedParams.status) {
-      where.status = validatedParams.status;
+      baseWhere.status = validatedParams.status;
     }
-    
+
     if (validatedParams.dataInicio && validatedParams.dataFim) {
-      where.dataInicio = {
+      baseWhere.dataInicio = {
         gte: new Date(validatedParams.dataInicio),
         lte: new Date(validatedParams.dataFim),
       };
     }
+
+    const where = buildReservaScopeWhere(
+      accessScope,
+      usuario.id,
+      baseWhere,
+      validatedParams.condominioId
+    );
 
     const reservas = await prisma.reserva.findMany({
       where,
@@ -104,12 +162,12 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Erro ao listar reservas:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Parâmetros inválidos',
+          error: 'Parametros invalidos',
           details: error.issues,
         },
         { status: 400 }
@@ -131,10 +189,25 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const usuario = await getUsuarioAutenticado();
+    if (!usuario) {
+      return NextResponse.json(
+        { success: false, error: 'Nao autorizado' },
+        { status: 401 }
+      );
+    }
+
+    const accessScope = getReservaAccessScope(usuario);
     const body = await request.json();
     const validatedData = createReservaSchema.parse(body);
 
-    // Verificar se a vaga existe e está disponível
+    if (!canAccessCondominio(accessScope, validatedData.condominioId)) {
+      return NextResponse.json(
+        { success: false, error: 'Acesso negado para este condominio' },
+        { status: 403 }
+      );
+    }
+
     const vaga = await prisma.vaga.findUnique({
       where: { id: validatedData.vagaId },
       include: {
@@ -170,100 +243,106 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Vaga não encontrada',
+          error: 'Vaga nao encontrada',
         },
         { status: 404 }
       );
     }
 
-    // Verificar se há conflito de horários
+    if (vaga.condominioId !== validatedData.condominioId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'A vaga informada nao pertence ao condominio selecionado',
+        },
+        { status: 400 }
+      );
+    }
+
     if (vaga.reservas.length > 0) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Vaga já está reservada para este período',
+          error: 'Vaga ja esta reservada para este periodo',
           conflitos: vaga.reservas,
         },
         { status: 409 }
       );
     }
 
-    // Verificar se a vaga está disponível para locação
     if (!vaga.configuracaoLocacao || !vaga.configuracaoLocacao.disponivel) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Vaga não está disponível para locação',
+          error: 'Vaga nao esta disponivel para locacao',
         },
         { status: 400 }
       );
     }
 
-    // Verificar se o tipo de locação é permitido
-    if (validatedData.tipoLocacao && !vaga.configuracaoLocacao.tiposPermitidos.includes(validatedData.tipoLocacao)) {
+    if (
+      validatedData.tipoLocacao &&
+      !vaga.configuracaoLocacao.tiposPermitidos.includes(validatedData.tipoLocacao)
+    ) {
       return NextResponse.json(
         {
           success: false,
-          error: `Tipo de locação ${validatedData.tipoLocacao.toLowerCase()} não é permitido para esta vaga`,
+          error: `Tipo de locacao ${validatedData.tipoLocacao.toLowerCase()} nao e permitido para esta vaga`,
         },
         { status: 400 }
       );
     }
 
-    // Verificar se a data de início não é no passado
     const agora = new Date();
     const dataInicio = new Date(validatedData.dataInicio);
-    
+    const dataFim = new Date(validatedData.dataFim);
+
     if (dataInicio < agora) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Data de início não pode ser no passado',
+          error: 'Data de inicio nao pode ser no passado',
         },
         { status: 400 }
       );
     }
 
-    // Verificar se a data de fim é posterior à data de início
-    const dataFim = new Date(validatedData.dataFim);
-    
     if (dataFim <= dataInicio) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Data de fim deve ser posterior à data de início',
+          error: 'Data de fim deve ser posterior a data de inicio',
         },
         { status: 400 }
       );
     }
 
-    // Calcular valor da reserva baseado no tipo de locação
     let valorReserva: number | null = null;
     if (validatedData.tipoLocacao && vaga.configuracaoLocacao) {
       const config = vaga.configuracaoLocacao;
-      const tipoLocacao = validatedData.tipoLocacao;
-      
-      if (tipoLocacao === 'HORA' && config.valorHora) {
+
+      if (validatedData.tipoLocacao === 'HORA' && config.valorHora) {
         const horas = (dataFim.getTime() - dataInicio.getTime()) / (1000 * 60 * 60);
         valorReserva = parseFloat(config.valorHora.toString()) * horas;
-      } else if (tipoLocacao === 'DIARIA' && config.valorDiaria) {
-        const dias = Math.ceil((dataFim.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
+      } else if (validatedData.tipoLocacao === 'DIARIA' && config.valorDiaria) {
+        const dias = Math.ceil(
+          (dataFim.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24)
+        );
         valorReserva = parseFloat(config.valorDiaria.toString()) * dias;
-      } else if (tipoLocacao === 'MENSAL' && config.valorMensal) {
+      } else if (validatedData.tipoLocacao === 'MENSAL' && config.valorMensal) {
         valorReserva = parseFloat(config.valorMensal.toString());
-      } else if (tipoLocacao === 'ANUAL' && config.valorAnual) {
+      } else if (validatedData.tipoLocacao === 'ANUAL' && config.valorAnual) {
         valorReserva = parseFloat(config.valorAnual.toString());
       }
     }
 
-    // Criar a reserva
     const novaReserva = await prisma.reserva.create({
       data: {
         vagaId: validatedData.vagaId,
-        usuarioId: validatedData.usuarioId,
+        usuarioId: usuario.id,
         condominioId: validatedData.condominioId,
-        dataInicio: new Date(validatedData.dataInicio),
-        dataFim: new Date(validatedData.dataFim),
+        dataInicio,
+        dataFim,
         tipoLocacao: validatedData.tipoLocacao,
         valor: valorReserva,
         observacoes: validatedData.observacoes,
@@ -309,12 +388,12 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Erro ao criar reserva:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Dados inválidos',
+          error: 'Dados invalidos',
           details: error.issues,
         },
         { status: 400 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { Layout } from '@/components';
 import { Car, Edit, AlertCircle, Loader } from 'lucide-react';
@@ -42,11 +42,7 @@ export default function MinhasVagasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [vagaSelecionada, setVagaSelecionada] = useState<Vaga | null>(null);
 
-  useEffect(() => {
-    carregarUnidade();
-  }, [usuario?.id]);
-
-  const carregarUnidade = async () => {
+  const carregarUnidade = useCallback(async () => {
     if (!usuario?.id) return;
 
     try {
@@ -66,7 +62,11 @@ export default function MinhasVagasPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [usuario?.id]);
+
+  useEffect(() => {
+    carregarUnidade();
+  }, [carregarUnidade]);
 
   const abrirModalConfiguracao = (vaga: Vaga) => {
     setVagaSelecionada(vaga);

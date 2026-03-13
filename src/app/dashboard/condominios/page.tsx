@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
   PlusIcon, 
@@ -47,7 +47,7 @@ export default function CondominiosPage() {
   const [totalPaginas, setTotalPaginas] = useState(1);
   const [total, setTotal] = useState(0);
 
-  const fetchCondominios = async () => {
+  const fetchCondominios = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -74,11 +74,11 @@ export default function CondominiosPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [busca, filtroAtivo, paginaAtual]);
 
   useEffect(() => {
     fetchCondominios();
-  }, [paginaAtual, busca, filtroAtivo]);
+  }, [fetchCondominios]);
 
   const handleDelete = async (id: string, nome: string) => {
     const confirmDelete = window.confirm(

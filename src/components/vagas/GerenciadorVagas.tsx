@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Vaga, FormularioConfiguracaoLocacao } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/Button';
@@ -27,11 +27,7 @@ export function GerenciadorVagas({ condominioId, usuarioId }: GerenciadorVagasPr
     valorAnual: null,
   });
 
-  useEffect(() => {
-    carregarVagas();
-  }, [condominioId]);
-
-  const carregarVagas = async () => {
+  const carregarVagas = useCallback(async () => {
     try {
       setCarregando(true);
       const response = await fetch(`/api/vagas?condominioId=${condominioId}`);
@@ -44,7 +40,11 @@ export function GerenciadorVagas({ condominioId, usuarioId }: GerenciadorVagasPr
     } finally {
       setCarregando(false);
     }
-  };
+  }, [condominioId]);
+
+  useEffect(() => {
+    carregarVagas();
+  }, [carregarVagas]);
 
   const handleSelecionarVaga = (vaga: Vaga) => {
     setVagaSelecionada(vaga);

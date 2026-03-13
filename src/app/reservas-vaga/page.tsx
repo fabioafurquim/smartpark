@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { Calendar, CheckCircle, XCircle, Clock, User, DollarSign, Building2 } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, Clock, User, DollarSign } from 'lucide-react';
 import { Layout } from '@/components';
 import { Button } from '@/components/ui';
 
@@ -33,7 +32,6 @@ interface Locacao {
 }
 
 export default function ReservasVagaPage() {
-  const { data: session } = useSession();
   const [locacoes, setLocacoes] = useState<Locacao[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<string>('TODAS');

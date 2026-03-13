@@ -94,7 +94,7 @@ export default function NovoCondominioPage() {
 
       // Sucesso - redirecionar para a lista
       router.push('/dashboard/condominios');
-    } catch (error) {
+    } catch {
       setErrors({ general: 'Erro de conexão. Tente novamente.' });
     } finally {
       setLoading(false);

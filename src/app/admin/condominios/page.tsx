@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useCallback, useEffect, useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { Button, Input, Modal, ModalFooter, Table } from '@/components/ui';
 import { 
@@ -35,7 +34,6 @@ interface Condominio {
 }
 
 export default function AdminCondominiosPage() {
-  const { data: session } = useSession();
   const [condominios, setCondominios] = useState<Condominio[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState('');
@@ -63,7 +61,7 @@ export default function AdminCondominiosPage() {
   const [errosValidacao, setErrosValidacao] = useState<Record<string, string>>({});
 
   // Buscar condomínios
-  const buscarCondominios = async () => {
+  const buscarCondominios = useCallback(async () => {
     try {
       setCarregando(true);
       const params = new URLSearchParams();
@@ -80,7 +78,7 @@ export default function AdminCondominiosPage() {
     } finally {
       setCarregando(false);
     }
-  };
+  }, [busca]);
 
   // Criar condomínio
   const criarCondominio = async () => {
@@ -254,7 +252,7 @@ export default function AdminCondominiosPage() {
   // Efeitos
   useEffect(() => {
     buscarCondominios();
-  }, [busca]);
+  }, [buscarCondominios]);
 
   // Colunas da tabela
   const colunas = [

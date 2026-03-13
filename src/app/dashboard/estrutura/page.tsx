@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Building2, Home, Car, Plus } from 'lucide-react';
+import { Building2, Home, Car } from 'lucide-react';
 import { Layout } from '@/components';
-import { Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
 interface EstatisticasEstrutura {

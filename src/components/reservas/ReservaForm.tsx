@@ -1,18 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Clock as ClockIcon, MapPin as MapPinIcon, User as UserIcon } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Calendar as CalendarIcon, Clock as ClockIcon, MapPin as MapPinIcon } from 'lucide-react';
 
 // Tipos
 interface Condominio {
   id: string;
   nome: string;
-}
-
-interface Usuario {
-  id: string;
-  nome: string;
-  email: string;
 }
 
 interface Torre {
@@ -45,9 +39,7 @@ interface DisponibilidadeResponse {
 
 interface ReservaFormProps {
   condominios: Condominio[];
-  usuarios?: Usuario[];
   vagasDisponiveis?: Vaga[];
-  onVagasDisponiveisChange?: (condominioId: string, dataInicio: string, dataFim: string) => void;
   reservaId?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
@@ -56,9 +48,7 @@ interface ReservaFormProps {
 
 export default function ReservaForm({ 
   condominios, 
-  usuarios = [], 
   vagasDisponiveis: vagasDisponiveisProps = [],
-  onVagasDisponiveisChange,
   reservaId, 
   onSuccess, 
   onCancel,
@@ -66,7 +56,6 @@ export default function ReservaForm({
 }: ReservaFormProps) {
   const [formData, setFormData] = useState({
     vagaId: '',
-    usuarioId: '',
     condominioId: condominioPreSelecionado,
     dataInicio: '',
     horaInicio: '',
@@ -96,7 +85,6 @@ export default function ReservaForm({
             
             setFormData({
               vagaId: reserva.vagaId,
-              usuarioId: reserva.usuarioId,
               condominioId: reserva.condominioId,
               dataInicio: dataInicio.toISOString().split('T')[0],
               horaInicio: dataInicio.toTimeString().slice(0, 5),
@@ -117,14 +105,7 @@ export default function ReservaForm({
     }
   }, [reservaId]);
 
-  // Verificar disponibilidade quando datas e condomínio mudarem
-  useEffect(() => {
-    if (formData.condominioId && formData.dataInicio && formData.dataFim && formData.horaInicio && formData.horaFim) {
-      verificarDisponibilidade();
-    }
-  }, [formData.condominioId, formData.dataInicio, formData.dataFim, formData.horaInicio, formData.horaFim]);
-
-  const verificarDisponibilidade = async () => {
+  const verificarDisponibilidade = useCallback(async () => {
     try {
       setLoading(true);
       const dataInicioCompleta = `${formData.dataInicio}T${formData.horaInicio}:00.000Z`;
@@ -153,12 +134,34 @@ export default function ReservaForm({
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    formData.condominioId,
+    formData.dataFim,
+    formData.dataInicio,
+    formData.horaFim,
+    formData.horaInicio,
+    formData.vagaId,
+    reservaId,
+  ]);
+
+  // Verificar disponibilidade quando datas e condomínio mudarem
+  useEffect(() => {
+    if (formData.condominioId && formData.dataInicio && formData.dataFim && formData.horaInicio && formData.horaFim) {
+      verificarDisponibilidade();
+    }
+  }, [
+    formData.condominioId,
+    formData.dataFim,
+    formData.dataInicio,
+    formData.horaFim,
+    formData.horaInicio,
+    verificarDisponibilidade,
+  ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.vagaId || !formData.usuarioId || !formData.condominioId || 
+    if (!formData.vagaId || !formData.condominioId || 
         !formData.dataInicio || !formData.horaInicio || !formData.dataFim || !formData.horaFim) {
       setError('Todos os campos obrigatórios devem ser preenchidos');
       return;
@@ -173,7 +176,6 @@ export default function ReservaForm({
       
       const dadosReserva = {
         vagaId: formData.vagaId,
-        usuarioId: formData.usuarioId,
         condominioId: formData.condominioId,
         dataInicio: dataInicioCompleta,
         dataFim: dataFimCompleta,
@@ -203,7 +205,6 @@ export default function ReservaForm({
         if (!reservaId) {
           setFormData({
             vagaId: '',
-            usuarioId: '',
             condominioId: '',
             dataInicio: '',
             horaInicio: '',
@@ -263,27 +264,6 @@ export default function ReservaForm({
               {condominios.map((condominio) => (
                 <option key={condominio.id} value={condominio.id}>
                   {condominio.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Seleção de Usuário */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <UserIcon className="inline h-4 w-4 mr-1" />
-              Usuário *
-            </label>
-            <select
-              value={formData.usuarioId}
-              onChange={(e) => setFormData({ ...formData, usuarioId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Selecione um usuário</option>
-              {usuarios.map((usuario) => (
-                <option key={usuario.id} value={usuario.id}>
-                  {usuario.nome} ({usuario.email})
                 </option>
               ))}
             </select>

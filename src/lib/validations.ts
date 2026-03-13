@@ -106,6 +106,16 @@ export const criarSolicitacaoCadastroSchema = z.object({
   vagaId: z.string().uuid('ID da vaga inválido').optional(),
 });
 
+export const autoCadastroMoradorSchema = z.object({
+  nome: nomeSchema,
+  email: emailSchema,
+  senha: senhaSchema,
+  codigoCondominio: z.string()
+    .min(1, 'Codigo do condominio e obrigatorio')
+    .max(20, 'Codigo deve ter no maximo 20 caracteres'),
+  unidadeId: z.string().min(1, 'Unidade e obrigatoria'),
+});
+
 export const processarSolicitacaoSchema = z.object({
   status: z.enum(['aprovado', 'rejeitado']),
   observacoes: z.string().max(500, 'Observações devem ter no máximo 500 caracteres').optional(),
@@ -181,6 +191,7 @@ export type AtualizarVagaInput = z.infer<typeof atualizarVagaSchema>;
 export type CriarPerfilUsuarioInput = z.infer<typeof criarPerfilUsuarioSchema>;
 export type AtualizarPerfilUsuarioInput = z.infer<typeof atualizarPerfilUsuarioSchema>;
 export type CriarSolicitacaoCadastroInput = z.infer<typeof criarSolicitacaoCadastroSchema>;
+export type AutoCadastroMoradorInput = z.infer<typeof autoCadastroMoradorSchema>;
 export type ProcessarSolicitacaoInput = z.infer<typeof processarSolicitacaoSchema>;
 export type ConfiguracaoInicialInput = z.infer<typeof configuracaoInicialSchema>;
 export type FiltrosBuscaInput = z.infer<typeof filtrosBuscaSchema>;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { Calendar, CheckCircle, XCircle, Clock, User, DollarSign, Building2, AlertCircle } from 'lucide-react';
 import { Layout } from '@/components';
@@ -48,11 +48,7 @@ export default function ReservasSindicoPage() {
   const [erro, setErro] = useState('');
   const [acesso, setAcesso] = useState(true);
 
-  useEffect(() => {
-    carregarDados();
-  }, [filtroCondominio]);
-
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     try {
       setCarregando(true);
       
@@ -92,7 +88,11 @@ export default function ReservasSindicoPage() {
     } finally {
       setCarregando(false);
     }
-  };
+  }, [filtroCondominio, usuario]);
+
+  useEffect(() => {
+    carregarDados();
+  }, [carregarDados]);
 
   const locacoesFiltradas = locacoes.filter(loc =>
     filtroStatus === 'TODAS' || loc.status === filtroStatus

@@ -240,11 +240,11 @@ export function MultiSelect({
                       <div onClick={() => !desabilitado && toggleOpcao(opcao.valor)}>
                         <span className={cn(
                           'block truncate',
-                          selecionado ? 'font-medium' : 'font-normal'
+                          selected ? 'font-medium' : 'font-normal'
                         )}>
                           {opcao.label}
                         </span>
-                        {selecionado && (
+                        {selected && (
                           <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-primary-600">
                             <Check className="h-4 w-4" aria-hidden="true" />
                           </span>

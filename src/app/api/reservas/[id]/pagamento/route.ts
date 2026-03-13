@@ -1,12 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
 import { z } from 'zod';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import {
+  canManageCondominio,
+  getReservaAccessScope,
+} from '@/lib/reservas-auth';
+import { UsuarioSessao } from '@/types';
 
 const confirmarPagamentoSchema = z.object({
   statusPagamento: z.enum(['CONFIRMADO', 'CANCELADO', 'REEMBOLSADO']),
   metodo: z.enum(['PIX', 'CARTAO', 'TRANSFERENCIA', 'MANUAL']).optional(),
   referencia: z.string().optional(),
 });
+
+async function getUsuarioAutenticado() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return null;
+  }
+
+  return session.user as UsuarioSessao;
+}
+
+async function carregarReserva(id: string) {
+  return prisma.reserva.findUnique({
+    where: { id },
+  });
+}
 
 /**
  * PUT /api/reservas/[id]/pagamento - Confirmar ou atualizar pagamento
@@ -16,23 +39,37 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const usuario = await getUsuarioAutenticado();
+    if (!usuario) {
+      return NextResponse.json(
+        { success: false, error: 'Nao autorizado' },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const body = await request.json();
     const validatedData = confirmarPagamentoSchema.parse(body);
-
-    // Buscar reserva existente
-    const reservaExistente = await prisma.reserva.findUnique({
-      where: { id },
-    });
+    const reservaExistente = await carregarReserva(id);
 
     if (!reservaExistente) {
       return NextResponse.json(
-        { error: 'Reserva não encontrada' },
+        { error: 'Reserva nao encontrada' },
         { status: 404 }
       );
     }
 
-    // Validar transição de status
+    const accessScope = getReservaAccessScope(usuario);
+    const canManage = canManageCondominio(accessScope, reservaExistente.condominioId);
+    const isOwner = reservaExistente.usuarioId === usuario.id;
+
+    if (!canManage && !isOwner) {
+      return NextResponse.json(
+        { success: false, error: 'Acesso negado' },
+        { status: 403 }
+      );
+    }
+
     const transicoesValidas: Record<string, string[]> = {
       PENDENTE: ['CONFIRMADO', 'CANCELADO'],
       CONFIRMADO: ['REEMBOLSADO', 'CANCELADO'],
@@ -40,11 +77,11 @@ export async function PUT(
       REEMBOLSADO: [],
     };
 
-    const statusAtual = (reservaExistente as any).statusPagamento as string;
+    const statusAtual = reservaExistente.statusPagamento;
     if (!transicoesValidas[statusAtual]?.includes(validatedData.statusPagamento)) {
       return NextResponse.json(
         {
-          error: 'Transição de status inválida',
+          error: 'Transicao de status invalida',
           statusAtual,
           statusSolicitado: validatedData.statusPagamento,
           transicoesPermitidas: transicoesValidas[statusAtual],
@@ -53,16 +90,16 @@ export async function PUT(
       );
     }
 
-    // Atualizar status de pagamento
     const reservaAtualizada = await prisma.reserva.update({
       where: { id },
       data: {
-        statusPagamento: validatedData.statusPagamento as any,
+        statusPagamento: validatedData.statusPagamento,
       },
     });
 
-    // Log da transação (para auditoria)
-    console.log(`Pagamento atualizado - Reserva: ${id}, Status: ${validatedData.statusPagamento}, Método: ${validatedData.metodo || 'N/A'}`);
+    console.log(
+      `Pagamento atualizado - Reserva: ${id}, Status: ${validatedData.statusPagamento}, Metodo: ${validatedData.metodo || 'N/A'}`
+    );
 
     return NextResponse.json({
       success: true,
@@ -82,7 +119,7 @@ export async function PUT(
       return NextResponse.json(
         {
           success: false,
-          error: 'Dados inválidos',
+          error: 'Dados invalidos',
           details: error.issues,
         },
         { status: 400 }
@@ -103,20 +140,36 @@ export async function PUT(
  * GET /api/reservas/[id]/pagamento - Obter status de pagamento
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const usuario = await getUsuarioAutenticado();
+    if (!usuario) {
+      return NextResponse.json(
+        { success: false, error: 'Nao autorizado' },
+        { status: 401 }
+      );
+    }
 
-    const reserva = await prisma.reserva.findUnique({
-      where: { id },
-    });
+    const { id } = await params;
+    const reserva = await carregarReserva(id);
 
     if (!reserva) {
       return NextResponse.json(
-        { error: 'Reserva não encontrada' },
+        { error: 'Reserva nao encontrada' },
         { status: 404 }
+      );
+    }
+
+    const accessScope = getReservaAccessScope(usuario);
+    const canManage = canManageCondominio(accessScope, reserva.condominioId);
+    const isOwner = reserva.usuarioId === usuario.id;
+
+    if (!canManage && !isOwner) {
+      return NextResponse.json(
+        { success: false, error: 'Acesso negado' },
+        { status: 403 }
       );
     }
 
@@ -126,7 +179,7 @@ export async function GET(
         id: reserva.id,
         valor: reserva.valor?.toString(),
         status: reserva.status,
-        statusPagamento: (reserva as any).statusPagamento,
+        statusPagamento: reserva.statusPagamento,
         dataInicio: reserva.dataInicio.toISOString(),
         dataFim: reserva.dataFim.toISOString(),
         tipoLocacao: reserva.tipoLocacao,

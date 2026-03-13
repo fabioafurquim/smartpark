@@ -12,7 +12,6 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UsuarioSessao } from '@/types';

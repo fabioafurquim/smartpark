@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Reserva } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/Button';
-import { AlertCircle, Calendar, MapPin, DollarSign, Trash2 } from 'lucide-react';
+import { AlertCircle, Calendar, DollarSign, Trash2 } from 'lucide-react';
 
 interface MinhasReservasProps {
   usuarioId: string;
@@ -16,11 +16,7 @@ export function MinhasReservas({ usuarioId }: MinhasReservasProps) {
   const [erro, setErro] = useState<string | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>('ativa');
 
-  useEffect(() => {
-    carregarReservas();
-  }, [usuarioId]);
-
-  const carregarReservas = async () => {
+  const carregarReservas = useCallback(async () => {
     try {
       setCarregando(true);
       const response = await fetch(`/api/reservas?usuarioId=${usuarioId}`);
@@ -33,7 +29,11 @@ export function MinhasReservas({ usuarioId }: MinhasReservasProps) {
     } finally {
       setCarregando(false);
     }
-  };
+  }, [usuarioId]);
+
+  useEffect(() => {
+    carregarReservas();
+  }, [carregarReservas]);
 
   const handleCancelarReserva = async (reservaId: string) => {
     if (!confirm('Tem certeza que deseja cancelar esta reserva?')) return;

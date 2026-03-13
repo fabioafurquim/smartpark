@@ -1,13 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useCallback, useEffect, useState } from 'react';
 import { 
-  Users, 
   Plus, 
   Search, 
-  Filter,
-  Edit,
   Trash2,
   Eye,
   UserCheck,
@@ -15,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Layout } from '@/components';
 import { Button, Input, Modal, Table, Select } from '@/components/ui';
-import type { Usuario, PerfilUsuario, TipoPerfilUsuario } from '@/types';
+import type { Usuario, PerfilUsuario } from '@/types';
 
 interface UsuarioCompleto extends Usuario {
   perfis: (PerfilUsuario & {
@@ -30,7 +26,6 @@ interface UsuarioCompleto extends Usuario {
  * Página de administração de usuários (apenas para administrador mestre)
  */
 export default function AdminUsuariosPage() {
-  const { data: session } = useSession();
   const [usuarios, setUsuarios] = useState<UsuarioCompleto[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
@@ -41,11 +36,7 @@ export default function AdminUsuariosPage() {
     ativo: ''
   });
 
-  useEffect(() => {
-    carregarUsuarios();
-  }, [filtros]);
-
-  const carregarUsuarios = async () => {
+  const carregarUsuarios = useCallback(async () => {
     try {
       setCarregando(true);
       const params = new URLSearchParams();
@@ -63,7 +54,11 @@ export default function AdminUsuariosPage() {
     } finally {
       setCarregando(false);
     }
-  };
+  }, [filtros]);
+
+  useEffect(() => {
+    carregarUsuarios();
+  }, [carregarUsuarios]);
 
   const alternarStatusUsuario = async (usuarioId: string, ativo: boolean) => {
     try {

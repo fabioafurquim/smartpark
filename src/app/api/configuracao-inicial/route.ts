@@ -1,53 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { configuracaoInicialSchema } from '@/lib/validations';
 
-// Definição inline do tipo para contornar problema de importação
-type TipoPerfilUsuario = 
-  | 'administrador_mestre'
-  | 'administrador_condominio'
-  | 'sindico'
-  | 'morador';
+async function obterEstadoConfiguracao() {
+  const [configuracaoExistente, totalUsuarios, totalCondominios, totalPerfis] =
+    await Promise.all([
+      prisma.configuracaoSistema.findFirst(),
+      prisma.usuario.count(),
+      prisma.condominio.count(),
+      prisma.perfilUsuario.count(),
+    ]);
 
-/**
- * API Route para configuração inicial do sistema SmartPark
- * POST /api/configuracao-inicial
- */
+  const bancoJaPossuiDados =
+    totalUsuarios > 0 || totalCondominios > 0 || totalPerfis > 0;
+  const configurado =
+    configuracaoExistente?.administradorMestreConfigurado || bancoJaPossuiDados;
+
+  return {
+    configuracaoExistente,
+    bancoJaPossuiDados,
+    configurado,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // Verificar se o sistema já foi configurado
-    const configuracaoExistente = await prisma.configuracaoSistema.findFirst();
-    
-    if (configuracaoExistente && configuracaoExistente.administradorMestreConfigurado) {
+    const estado = await obterEstadoConfiguracao();
+
+    if (estado.configurado) {
       return NextResponse.json(
-        { erro: 'Sistema já foi configurado' },
+        { erro: 'Sistema ja foi configurado' },
         { status: 400 }
       );
     }
 
-    // Validar dados de entrada
     const body = await request.json();
     const dadosValidados = configuracaoInicialSchema.parse(body);
 
-    // Verificar se já existe um usuário com o email do admin
     const usuarioExistente = await prisma.usuario.findUnique({
-      where: { email: dadosValidados.emailAdmin }
+      where: { email: dadosValidados.emailAdmin },
     });
 
     if (usuarioExistente) {
       return NextResponse.json(
-        { erro: 'Já existe um usuário com este email' },
+        { erro: 'Ja existe um usuario com este email' },
         { status: 400 }
       );
     }
 
-    // Hash da senha
     const senhaHash = await bcrypt.hash(dadosValidados.senhaAdmin, 12);
 
-    // Transação para criar configuração e administrador
     const resultado = await prisma.$transaction(async (tx) => {
-      // 1. Criar usuário administrador
       const novoUsuario = await tx.usuario.create({
         data: {
           nome: dadosValidados.nomeAdmin,
@@ -57,17 +62,15 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 2. Criar um condomínio temporário para o administrador mestre
       const condominioMestre = await tx.condominio.create({
         data: {
-          nome: 'Sistema - Administração',
+          nome: 'Sistema - Administracao',
           endereco: 'Sistema',
           codigoUnico: 'ADMIN_MASTER',
           ativo: true,
         },
       });
 
-      // 3. Criar perfil de administrador mestre
       await tx.perfilUsuario.create({
         data: {
           usuarioId: novoUsuario.id,
@@ -77,10 +80,9 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 4. Atualizar ou criar configuração do sistema
-      const configuracao = configuracaoExistente
+      const configuracao = estado.configuracaoExistente
         ? await tx.configuracaoSistema.update({
-            where: { id: configuracaoExistente.id },
+            where: { id: estado.configuracaoExistente.id },
             data: {
               administradorMestreConfigurado: true,
             },
@@ -94,7 +96,6 @@ export async function POST(request: NextRequest) {
       return {
         usuario: novoUsuario,
         configuracao,
-        condominioMestre,
       };
     });
 
@@ -110,79 +111,74 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Erro na configuração inicial:', error);
+    console.error('Erro na configuracao inicial:', error);
 
-    // Erro de validação do Zod
-    if (error instanceof Error && error.name === 'ZodError') {
+    if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
-          erro: 'Dados inválidos',
-          detalhes: error.message,
+          erro: 'Dados invalidos',
+          detalhes: error.issues,
         },
         { status: 400 }
       );
     }
 
-    // Erro do Prisma
     if (error instanceof Error && error.message.includes('Unique constraint')) {
       return NextResponse.json(
-        { erro: 'Email já está em uso' },
+        { erro: 'Email ja esta em uso' },
         { status: 400 }
       );
     }
 
-    // Erro genérico
     return NextResponse.json(
       {
         erro: 'Erro interno do servidor',
-        mensagem: 'Ocorreu um erro durante a configuração do sistema',
+        mensagem: 'Ocorreu um erro durante a configuracao do sistema',
       },
       { status: 500 }
     );
   }
 }
 
-/**
- * Verificar se o sistema já foi configurado
- * GET /api/configuracao-inicial
- */
 export async function GET() {
   try {
-    let configuracao = await prisma.configuracaoSistema.findFirst({
-      select: {
-        id: true,
-        administradorMestreConfigurado: true,
-        criadoEm: true,
-        atualizadoEm: true,
-      },
-    });
+    const estado = await obterEstadoConfiguracao();
 
-    // Se não existe configuração, criar uma com status false
-    if (!configuracao) {
-      configuracao = await prisma.configuracaoSistema.create({
+    const configuracao =
+      estado.configuracaoExistente ||
+      (await prisma.configuracaoSistema.create({
         data: {
-          administradorMestreConfigurado: false,
+          administradorMestreConfigurado: estado.configurado,
         },
-        select: {
-          id: true,
+      }));
+
+    if (!configuracao.administradorMestreConfigurado && estado.configurado) {
+      await prisma.configuracaoSistema.update({
+        where: {
+          id: configuracao.id,
+        },
+        data: {
           administradorMestreConfigurado: true,
-          criadoEm: true,
-          atualizadoEm: true,
         },
       });
     }
 
     return NextResponse.json({
-      configurado: configuracao.administradorMestreConfigurado,
-      dados: configuracao,
+      configurado: estado.configurado,
+      dados: {
+        id: configuracao.id,
+        administradorMestreConfigurado: estado.configurado,
+        criadoEm: configuracao.criadoEm,
+        atualizadoEm: configuracao.atualizadoEm,
+      },
     });
   } catch (error) {
-    console.error('Erro ao verificar configuração:', error);
-    
+    console.error('Erro ao verificar configuracao:', error);
+
     return NextResponse.json(
       {
         erro: 'Erro interno do servidor',
-        mensagem: 'Não foi possível verificar a configuração do sistema',
+        mensagem: 'Nao foi possivel verificar a configuracao do sistema',
       },
       { status: 500 }
     );

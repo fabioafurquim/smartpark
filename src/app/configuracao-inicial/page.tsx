@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, Building, User, Settings, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 
@@ -23,7 +22,8 @@ import { CheckCircle, Building, User, Settings, ArrowRight, ArrowLeft, Loader2 }
 export default function ConfiguracaoInicial() {
   const [etapaAtual, setEtapaAtual] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState('');
+  const [verificandoConfiguracao, setVerificandoConfiguracao] = useState(true);
+  const [, setErro] = useState('');
   const [sucesso, setSucesso] = useState(false);
   const router = useRouter();
 
@@ -39,6 +39,26 @@ export default function ConfiguracaoInicial() {
   });
 
   const watchedValues = watch();
+
+  useEffect(() => {
+    const verificarConfiguracao = async () => {
+      try {
+        const response = await fetch('/api/configuracao-inicial');
+        const data = await response.json();
+
+        if (response.ok && data.configurado) {
+          router.replace('/login?jaConfigurado=true');
+          return;
+        }
+      } catch (error) {
+        console.error('Erro ao verificar configuracao inicial:', error);
+      } finally {
+        setVerificandoConfiguracao(false);
+      }
+    };
+
+    void verificarConfiguracao();
+  }, [router]);
 
   const proximaEtapa = async () => {
     const camposEtapa1 = ['nomeEmpresa', 'emailContato', 'telefoneContato'];
@@ -83,10 +103,10 @@ export default function ConfiguracaoInicial() {
           router.push('/login?configurado=true');
         }, 2000);
       } else {
-        const error = await response.json();
-        setErro(error.message || 'Erro ao configurar o sistema');
+        const responseError = await response.json();
+        setErro(responseError.message || 'Erro ao configurar o sistema');
       }
-    } catch (error) {
+    } catch {
       setErro('Erro de conexão. Tente novamente.');
     } finally {
       setLoading(false);
@@ -116,6 +136,26 @@ export default function ConfiguracaoInicial() {
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span className="text-sm">Redirecionando...</span>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (verificandoConfiguracao) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <Loader2 className="w-10 h-10 text-blue-600 mx-auto animate-spin" />
+              <h2 className="text-xl font-bold text-gray-900">
+                Verificando configuracao
+              </h2>
+              <p className="text-gray-600">
+                Estamos checando se o sistema precisa de configuracao inicial.
+              </p>
             </div>
           </CardContent>
         </Card>

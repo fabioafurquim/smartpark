@@ -1,31 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { z } from 'zod';
+import { hash } from 'bcryptjs';
 import { authOptions } from '../../../../../lib/auth';
 import { prisma } from '../../../../../lib/prisma';
 import { ehAdministradorMestre } from '../../../../../lib/auth';
-import { z } from 'zod';
-import { hash } from 'bcryptjs';
 
 const paramsSchema = z.object({
-  id: z.string().uuid('ID do usuário deve ser um UUID válido'),
+  id: z.string().cuid('ID do usuario invalido'),
 });
 
-/**
- * GET /api/admin/usuarios/[id]
- * Busca um usuário específico por ID
- */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
-    if (!session?.user || !(session.user as any).id) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
+    if (!session?.user || !(session.user as { id?: string }).id) {
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
     if (!ehAdministradorMestre(session.user as any)) {
@@ -35,10 +27,8 @@ export async function GET(
       );
     }
 
-    // Validar parâmetros
     const { id } = paramsSchema.parse(await params);
 
-    // Buscar usuário
     const usuario = await prisma.usuario.findUnique({
       where: { id },
       include: {
@@ -56,59 +46,43 @@ export async function GET(
     });
 
     if (!usuario) {
-      return NextResponse.json(
-        { erro: 'Usuário não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
     }
 
     return NextResponse.json(usuario);
   } catch (error) {
-    console.error('Erro ao buscar usuário:', error);
+    console.error('Erro ao buscar usuario:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Parâmetros inválidos', detalhes: error.issues },
+        { erro: 'Parametros invalidos', detalhes: error.issues },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(
-      { erro: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
-/**
- * DELETE /api/admin/usuarios/[id]
- * Exclui um usuário (apenas para administrador mestre)
- */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
-    if (!session?.user || !(session.user as any).id) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
+    if (!session?.user || !(session.user as { id?: string }).id) {
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
     if (!ehAdministradorMestre(session.user as any)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem excluir usuários.' },
+        { erro: 'Acesso negado. Apenas administradores mestres podem excluir usuarios.' },
         { status: 403 }
       );
     }
 
-    // Validar parâmetros
     const { id } = paramsSchema.parse(await params);
 
-    // Verificar se o usuário existe
     const usuario = await prisma.usuario.findUnique({
       where: { id },
       include: {
@@ -117,141 +91,121 @@ export async function DELETE(
     });
 
     if (!usuario) {
-      return NextResponse.json(
-        { erro: 'Usuário não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
     }
 
-    // Não permitir exclusão do próprio usuário
-    if (usuario.id === (session.user as any).id) {
+    if (usuario.id === (session.user as { id: string }).id) {
       return NextResponse.json(
-        { erro: 'Não é possível excluir seu próprio usuário' },
+        { erro: 'Nao e possivel excluir seu proprio usuario' },
         { status: 400 }
       );
     }
 
-    // Verificar se é o último administrador mestre
     const isAdminMestre = usuario.perfis.some(
-      perfil => perfil.tipo === 'ADMINISTRADOR_MESTRE'
+      (perfil) => perfil.tipo === 'administrador_mestre' && perfil.ativo
     );
 
     if (isAdminMestre) {
       const totalAdminsMestre = await prisma.perfilUsuario.count({
         where: {
-          tipo: 'ADMINISTRADOR_MESTRE',
+          tipo: 'administrador_mestre',
           ativo: true,
         },
       });
 
       if (totalAdminsMestre <= 1) {
         return NextResponse.json(
-          { erro: 'Não é possível excluir o último administrador mestre do sistema' },
+          { erro: 'Nao e possivel excluir o ultimo administrador mestre do sistema' },
           { status: 400 }
         );
       }
     }
 
-    // Excluir usuário e seus perfis (cascade)
     await prisma.usuario.delete({
       where: { id },
     });
 
-    return NextResponse.json(
-      { mensagem: 'Usuário excluído com sucesso' },
-      { status: 200 }
-    );
+    return NextResponse.json({ mensagem: 'Usuario excluido com sucesso' }, { status: 200 });
   } catch (error) {
-    console.error('Erro ao excluir usuário:', error);
+    console.error('Erro ao excluir usuario:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Parâmetros inválidos', detalhes: error.issues },
+        { erro: 'Parametros invalidos', detalhes: error.issues },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(
-      { erro: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
-/**
- * PUT /api/admin/usuarios/[id]
- * Atualiza um usuário (apenas para administrador mestre)
- */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
-    if (!session?.user || !(session.user as any).id) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
+    if (!session?.user || !(session.user as { id?: string }).id) {
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
     if (!ehAdministradorMestre(session.user as any)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem atualizar usuários.' },
+        { erro: 'Acesso negado. Apenas administradores mestres podem atualizar usuarios.' },
         { status: 403 }
       );
     }
 
-    const { id } = await params;
+    const { id } = paramsSchema.parse(await params);
     const dados = await request.json();
 
-    // Schema de validação para atualização de usuário
     const atualizarUsuarioSchema = z.object({
       nome: z.string().min(2, 'Nome deve ter ao menos 2 caracteres').optional(),
-      email: z.string().email('Email inválido').optional(),
+      email: z.string().email('Email invalido').optional(),
       senha: z.string().min(6, 'Senha deve ter ao menos 6 caracteres').optional(),
-      perfis: z.array(
-        z.object({
-          condominioId: z.string().min(1, 'ID do condomínio é obrigatório'),
-          tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador']),
-          ativo: z.boolean().optional(),
-          permissoes: z.record(z.string(), z.boolean()).optional(),
-        })
-      ).optional(),
+      perfis: z
+        .array(
+          z.object({
+            condominioId: z.string().min(1, 'ID do condominio e obrigatorio'),
+            tipo: z.enum([
+              'administrador_mestre',
+              'administrador_condominio',
+              'sindico',
+              'morador',
+            ]),
+            ativo: z.boolean().optional(),
+            permissoes: z.record(z.string(), z.boolean()).optional(),
+          })
+        )
+        .optional(),
     });
 
     const dadosValidados = atualizarUsuarioSchema.parse(dados);
 
-    // Verificar se o usuário existe
     const usuarioExistente = await prisma.usuario.findUnique({
       where: { id },
       include: { perfis: true },
     });
 
     if (!usuarioExistente) {
-      return NextResponse.json(
-        { erro: 'Usuário não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
     }
 
-    // Preparar dados para atualização
-    const dataUpdate: any = {};
-    
+    const dataUpdate: Record<string, unknown> = {};
+
     if (dadosValidados.nome) {
       dataUpdate.nome = dadosValidados.nome;
     }
-    
+
     if (dadosValidados.email) {
       dataUpdate.email = dadosValidados.email;
     }
-    
+
     if (dadosValidados.senha) {
       dataUpdate.senha = await hash(dadosValidados.senha, 10);
     }
 
-    // Atualizar usuário
     const usuarioAtualizado = await prisma.usuario.update({
       where: { id },
       data: dataUpdate,
@@ -259,75 +213,65 @@ export async function PUT(
         perfis: {
           include: {
             condominio: {
-              select: { id: true, nome: true }
-            }
-          }
-        }
-      }
+              select: { id: true, nome: true },
+            },
+          },
+        },
+      },
     });
 
-    // Atualizar perfis se fornecidos
     if (dadosValidados.perfis) {
-      // Deletar perfis antigos
       await prisma.perfilUsuario.deleteMany({
-        where: { usuarioId: id }
+        where: { usuarioId: id },
       });
 
-      // Criar novos perfis
       await prisma.perfilUsuario.createMany({
-        data: dadosValidados.perfis.map((p) => ({
+        data: dadosValidados.perfis.map((perfil) => ({
           usuarioId: id,
-          condominioId: p.condominioId,
-          tipo: p.tipo,
-          ativo: p.ativo ?? true,
-          permissoes: p.permissoes ? (p.permissoes as any) : undefined,
+          condominioId: perfil.condominioId,
+          tipo: perfil.tipo,
+          ativo: perfil.ativo ?? true,
+          permissoes: perfil.permissoes ? (perfil.permissoes as any) : undefined,
         })),
       });
 
-      // Buscar usuário atualizado com novos perfis
       const usuarioComPerfisAtualizados = await prisma.usuario.findUnique({
         where: { id },
         include: {
           perfis: {
             include: {
               condominio: {
-                select: { id: true, nome: true }
-              }
-            }
-          }
-        }
+                select: { id: true, nome: true },
+              },
+            },
+          },
+        },
       });
 
       return NextResponse.json({
-        mensagem: 'Usuário atualizado com sucesso',
+        mensagem: 'Usuario atualizado com sucesso',
         usuario: usuarioComPerfisAtualizados,
       });
     }
 
     return NextResponse.json({
-      mensagem: 'Usuário atualizado com sucesso',
+      mensagem: 'Usuario atualizado com sucesso',
       usuario: usuarioAtualizado,
     });
   } catch (error) {
-    console.error('Erro ao atualizar usuário:', error);
-    
+    console.error('Erro ao atualizar usuario:', error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Dados inválidos', detalhes: error.issues },
+        { erro: 'Dados invalidos', detalhes: error.issues },
         { status: 400 }
       );
     }
 
     if (typeof error === 'object' && error && (error as any).code === 'P2002') {
-      return NextResponse.json(
-        { erro: 'Email já está em uso' },
-        { status: 409 }
-      );
+      return NextResponse.json({ erro: 'Email ja esta em uso' }, { status: 409 });
     }
 
-    return NextResponse.json(
-      { erro: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
   }
 }

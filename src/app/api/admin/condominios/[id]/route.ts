@@ -270,7 +270,6 @@ export async function DELETE(
       );
     }
 
-    const usuario = session.user as any; // Cast temporário para acessar id
     if (!ehAdministradorMestre(session as any)) {
       return NextResponse.json(
         { erro: 'Acesso negado. Apenas administradores mestres podem excluir condomínios.' },

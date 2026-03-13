@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Vaga, Reserva, FormularioReserva } from '@/types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Vaga, FormularioReserva } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { AlertCircle, Calendar, DollarSign, MapPin } from 'lucide-react';
+import { AlertCircle, DollarSign } from 'lucide-react';
 
 interface VisualizadorVagasProps {
   condominioId: string;
@@ -28,11 +28,7 @@ export function VisualizadorVagas({ condominioId, usuarioId }: VisualizadorVagas
     observacoes: '',
   });
 
-  useEffect(() => {
-    carregarVagas();
-  }, [condominioId]);
-
-  const carregarVagas = async () => {
+  const carregarVagas = useCallback(async () => {
     try {
       setCarregando(true);
       const response = await fetch(`/api/vagas?condominioId=${condominioId}`);
@@ -45,7 +41,11 @@ export function VisualizadorVagas({ condominioId, usuarioId }: VisualizadorVagas
     } finally {
       setCarregando(false);
     }
-  };
+  }, [condominioId]);
+
+  useEffect(() => {
+    carregarVagas();
+  }, [carregarVagas]);
 
   const calcularValor = (vaga: Vaga): string => {
     if (!vaga.configuracaoLocacao || !formulario.tipoLocacao) return 'N/A';

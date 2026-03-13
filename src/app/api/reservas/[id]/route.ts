@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
 import { z } from 'zod';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import {
+  canManageCondominio,
+  getReservaAccessScope,
+} from '@/lib/reservas-auth';
+import { UsuarioSessao } from '@/types';
 
-// Schema de validação para atualização de reserva
 const updateReservaSchema = z.object({
   dataInicio: z.string().datetime().optional(),
   dataFim: z.string().datetime().optional(),
@@ -10,59 +16,95 @@ const updateReservaSchema = z.object({
   observacoes: z.string().optional(),
 });
 
-/**
- * GET /api/reservas/[id] - Busca uma reserva específica
- */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
+async function getUsuarioAutenticado() {
+  const session = await getServerSession(authOptions);
 
-    const reserva = await prisma.reserva.findUnique({
-      where: { id },
-      include: {
-        vaga: {
-          select: {
-            id: true,
-            numero: true,
-            tipo: true,
-            unidade: {
-              select: {
-                numero: true,
-                torre: {
-                  select: {
-                    nome: true,
-                  },
+  if (!session?.user) {
+    return null;
+  }
+
+  return session.user as UsuarioSessao;
+}
+
+async function getReservaComAcesso(id: string, usuario: UsuarioSessao) {
+  const reserva = await prisma.reserva.findUnique({
+    where: { id },
+    include: {
+      vaga: {
+        select: {
+          id: true,
+          numero: true,
+          tipo: true,
+          condominioId: true,
+          unidade: {
+            select: {
+              numero: true,
+              torre: {
+                select: {
+                  nome: true,
                 },
               },
             },
           },
         },
-        usuario: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-          },
-        },
-        condominio: {
-          select: {
-            id: true,
-            nome: true,
-          },
+      },
+      usuario: {
+        select: {
+          id: true,
+          nome: true,
+          email: true,
         },
       },
-    });
+      condominio: {
+        select: {
+          id: true,
+          nome: true,
+        },
+      },
+    },
+  });
+
+  if (!reserva) {
+    return { reserva: null, canManage: false, canAccess: false };
+  }
+
+  const accessScope = getReservaAccessScope(usuario);
+  const canManage = canManageCondominio(accessScope, reserva.condominioId);
+  const canAccess = canManage || reserva.usuarioId === usuario.id;
+
+  return { reserva, canManage, canAccess };
+}
+
+/**
+ * GET /api/reservas/[id] - Busca uma reserva especifica
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const usuario = await getUsuarioAutenticado();
+    if (!usuario) {
+      return NextResponse.json(
+        { success: false, error: 'Nao autorizado' },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+    const { reserva, canAccess } = await getReservaComAcesso(id, usuario);
 
     if (!reserva) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Reserva não encontrada',
-        },
+        { success: false, error: 'Reserva nao encontrada' },
         { status: 404 }
+      );
+    }
+
+    if (!canAccess) {
+      return NextResponse.json(
+        { success: false, error: 'Acesso negado' },
+        { status: 403 }
       );
     }
 
@@ -72,7 +114,7 @@ export async function GET(
     });
   } catch (error) {
     console.error('Erro ao buscar reserva:', error);
-    
+
     return NextResponse.json(
       {
         success: false,
@@ -91,53 +133,75 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const usuario = await getUsuarioAutenticado();
+    if (!usuario) {
+      return NextResponse.json(
+        { success: false, error: 'Nao autorizado' },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const body = await request.json();
     const validatedData = updateReservaSchema.parse(body);
+    const { reserva, canManage, canAccess } = await getReservaComAcesso(id, usuario);
 
-    // Verificar se a reserva existe
-    const reservaExistente = await prisma.reserva.findUnique({
-      where: { id },
-      include: {
-        vaga: true,
-      },
-    });
-
-    if (!reservaExistente) {
+    if (!reserva) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Reserva não encontrada',
-        },
+        { success: false, error: 'Reserva nao encontrada' },
         { status: 404 }
       );
     }
 
-    // Se está alterando datas, verificar conflitos
-    if (validatedData.dataInicio || validatedData.dataFim) {
-      const novaDataInicio = validatedData.dataInicio 
-        ? new Date(validatedData.dataInicio) 
-        : reservaExistente.dataInicio;
-      const novaDataFim = validatedData.dataFim 
-        ? new Date(validatedData.dataFim) 
-        : reservaExistente.dataFim;
+    if (!canAccess) {
+      return NextResponse.json(
+        { success: false, error: 'Acesso negado' },
+        { status: 403 }
+      );
+    }
 
-      // Verificar se a data de fim é posterior à data de início
+    if (!canManage && validatedData.status && validatedData.status !== 'cancelada') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Somente sindicos e administradores podem alterar este status',
+        },
+        { status: 403 }
+      );
+    }
+
+    if (!canManage && reserva.status !== 'ativa') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Apenas reservas ativas podem ser alteradas pelo proprio usuario',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (validatedData.dataInicio || validatedData.dataFim) {
+      const novaDataInicio = validatedData.dataInicio
+        ? new Date(validatedData.dataInicio)
+        : reserva.dataInicio;
+      const novaDataFim = validatedData.dataFim
+        ? new Date(validatedData.dataFim)
+        : reserva.dataFim;
+
       if (novaDataFim <= novaDataInicio) {
         return NextResponse.json(
           {
             success: false,
-            error: 'Data de fim deve ser posterior à data de início',
+            error: 'Data de fim deve ser posterior a data de inicio',
           },
           { status: 400 }
         );
       }
 
-      // Verificar conflitos com outras reservas ativas
       const conflitos = await prisma.reserva.findMany({
         where: {
-          vagaId: reservaExistente.vagaId,
-          id: { not: id }, // Excluir a própria reserva
+          vagaId: reserva.vagaId,
+          id: { not: id },
           status: 'ativa',
           OR: [
             {
@@ -156,7 +220,7 @@ export async function PUT(
         return NextResponse.json(
           {
             success: false,
-            error: 'Conflito de horários com outras reservas',
+            error: 'Conflito de horarios com outras reservas',
             conflitos,
           },
           { status: 409 }
@@ -164,14 +228,19 @@ export async function PUT(
       }
     }
 
-    // Atualizar a reserva
     const reservaAtualizada = await prisma.reserva.update({
       where: { id },
       data: {
-        ...(validatedData.dataInicio && { dataInicio: new Date(validatedData.dataInicio) }),
-        ...(validatedData.dataFim && { dataFim: new Date(validatedData.dataFim) }),
+        ...(validatedData.dataInicio && {
+          dataInicio: new Date(validatedData.dataInicio),
+        }),
+        ...(validatedData.dataFim && {
+          dataFim: new Date(validatedData.dataFim),
+        }),
         ...(validatedData.status && { status: validatedData.status }),
-        ...(validatedData.observacoes !== undefined && { observacoes: validatedData.observacoes }),
+        ...(validatedData.observacoes !== undefined && {
+          observacoes: validatedData.observacoes,
+        }),
       },
       include: {
         vaga: {
@@ -211,12 +280,12 @@ export async function PUT(
     });
   } catch (error) {
     console.error('Erro ao atualizar reserva:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Dados inválidos',
+          error: 'Dados invalidos',
           details: error.issues,
         },
         { status: 400 }
@@ -237,28 +306,35 @@ export async function PUT(
  * DELETE /api/reservas/[id] - Cancela uma reserva
  */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-
-    // Verificar se a reserva existe
-    const reservaExistente = await prisma.reserva.findUnique({
-      where: { id },
-    });
-
-    if (!reservaExistente) {
+    const usuario = await getUsuarioAutenticado();
+    if (!usuario) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Reserva não encontrada',
-        },
+        { success: false, error: 'Nao autorizado' },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+    const { reserva, canAccess } = await getReservaComAcesso(id, usuario);
+
+    if (!reserva) {
+      return NextResponse.json(
+        { success: false, error: 'Reserva nao encontrada' },
         { status: 404 }
       );
     }
 
-    // Marcar como cancelada ao invés de deletar
+    if (!canAccess) {
+      return NextResponse.json(
+        { success: false, error: 'Acesso negado' },
+        { status: 403 }
+      );
+    }
+
     const reservaCancelada = await prisma.reserva.update({
       where: { id },
       data: {
@@ -297,7 +373,7 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('Erro ao cancelar reserva:', error);
-    
+
     return NextResponse.json(
       {
         success: false,

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions, ehAdministradorMestre } from '../../../../lib/auth';
 import { prisma } from '../../../../lib/prisma';
@@ -8,7 +8,7 @@ import { UsuarioSessao } from '../../../../types';
  * GET /api/dashboard/estatisticas
  * Retorna estatísticas personalizadas por perfil do usuário
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -35,11 +35,11 @@ export async function GET(request: NextRequest) {
         totalLocacoes,
         locacoesAtivas,
         locacoesPendentes,
+        solicitacoesCadastroPendentes,
         locacoesHoje,
         locacoesSemana,
         locacoesMes,
-        receitaTotal,
-        usuariosPorMes
+        receitaTotal
       ] = await Promise.all([
         prisma.condominio.count(),
         prisma.perfilUsuario.count({ where: { ativo: true } }),
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
         prisma.locacao.count(),
         prisma.locacao.count({ where: { status: 'ATIVA' } }),
         prisma.locacao.count({ where: { status: 'PENDENTE' } }),
+        prisma.solicitacaoCadastro.count({ where: { status: 'pendente' } }),
         prisma.locacao.count({
           where: {
             criadoEm: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
@@ -117,6 +118,7 @@ export async function GET(request: NextRequest) {
           totalLocacoes,
           locacoesAtivas,
           locacoesPendentes,
+          solicitacoesCadastroPendentes,
           receitaTotal: receitaTotal._sum.valor || 0
         },
         metricas: {
@@ -148,6 +150,7 @@ export async function GET(request: NextRequest) {
         totalMoradores,
         locacoesAtivas,
         locacoesPendentes,
+        solicitacoesCadastroPendentes,
         locacoesMes,
         receitaMes
       ] = await Promise.all([
@@ -182,6 +185,12 @@ export async function GET(request: NextRequest) {
             vaga: { condominioId: { in: condominioIds } }
           }
         }),
+        prisma.solicitacaoCadastro.count({
+          where: {
+            status: 'pendente',
+            condominioId: { in: condominioIds }
+          }
+        }),
         prisma.locacao.count({
           where: {
             criadoEm: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
@@ -206,7 +215,8 @@ export async function GET(request: NextRequest) {
           totalUnidades,
           totalMoradores,
           locacoesAtivas,
-          locacoesPendentes
+          locacoesPendentes,
+          solicitacoesCadastroPendentes
         },
         metricas: {
           locacoesMes,

@@ -252,6 +252,8 @@ model Locacao {
   dataFim        DateTime
   tipoLocacao    String
   valor          Float
+  placaVeiculo   String?
+  modeloVeiculo  String?
   status         String   @default("PENDENTE")
   
   criadoEm       DateTime @default(now())

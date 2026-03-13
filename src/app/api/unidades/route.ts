@@ -49,6 +49,13 @@ export async function GET(request: NextRequest) {
               tipo: true
             }
           },
+          usuario: {
+            select: {
+              id: true,
+              nome: true,
+              email: true
+            }
+          },
           _count: {
             select: {
               vagas: true
@@ -73,6 +80,7 @@ export async function GET(request: NextRequest) {
         condominioId: unidade.condominioId,
         torreId: unidade.torreId,
         usuarioId: unidade.usuarioId,
+        usuario: unidade.usuario,
         condominio: unidade.condominio,
         torre: unidade.torre,
         totalVagas: unidade._count.vagas,

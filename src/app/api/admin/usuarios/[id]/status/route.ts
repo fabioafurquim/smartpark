@@ -1,49 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { z } from 'zod';
 import { authOptions } from '../../../../../../lib/auth';
 import { prisma } from '../../../../../../lib/prisma';
 import { ehAdministradorMestre } from '../../../../../../lib/auth';
-import { z } from 'zod';
 
 const paramsSchema = z.object({
-  id: z.string().uuid('ID do usuário deve ser um UUID válido'),
+  id: z.string().cuid('ID do usuario invalido'),
 });
 
 const bodySchema = z.object({
   ativo: z.boolean('Status ativo deve ser um valor booleano'),
 });
 
-/**
- * PATCH /api/admin/usuarios/[id]/status
- * Altera o status ativo/inativo de todos os perfis de um usuário
- */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
-    if (!session?.user || !(session.user as any).id) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
+    if (!session?.user || !(session.user as { id?: string }).id) {
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
     if (!ehAdministradorMestre(session.user as any)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem alterar status de usuários.' },
+        { erro: 'Acesso negado. Apenas administradores mestres podem alterar status de usuarios.' },
         { status: 403 }
       );
     }
 
-    // Validar parâmetros
     const { id } = paramsSchema.parse(await params);
     const dados = await request.json();
     const { ativo } = bodySchema.parse(dados);
 
-    // Verificar se o usuário existe
     const usuario = await prisma.usuario.findUnique({
       where: { id },
       include: {
@@ -52,45 +42,39 @@ export async function PATCH(
     });
 
     if (!usuario) {
-      return NextResponse.json(
-        { erro: 'Usuário não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
     }
 
-    // Não permitir desativar o próprio usuário
-    if (usuario.id === (session.user as any).id && !ativo) {
+    if (usuario.id === (session.user as { id: string }).id && !ativo) {
       return NextResponse.json(
-        { erro: 'Não é possível desativar seu próprio usuário' },
+        { erro: 'Nao e possivel desativar seu proprio usuario' },
         { status: 400 }
       );
     }
 
-    // Verificar se é o último administrador mestre ativo
     const isAdminMestre = usuario.perfis.some(
-      perfil => perfil.tipo === 'ADMINISTRADOR_MESTRE' && perfil.ativo
+      (perfil) => perfil.tipo === 'administrador_mestre' && perfil.ativo
     );
 
     if (isAdminMestre && !ativo) {
       const totalAdminsMestreAtivos = await prisma.perfilUsuario.count({
         where: {
-          tipo: 'ADMINISTRADOR_MESTRE',
+          tipo: 'administrador_mestre',
           ativo: true,
           usuarioId: {
-            not: id, // Excluir o usuário atual da contagem
+            not: id,
           },
         },
       });
 
       if (totalAdminsMestreAtivos === 0) {
         return NextResponse.json(
-          { erro: 'Não é possível desativar o último administrador mestre ativo do sistema' },
+          { erro: 'Nao e possivel desativar o ultimo administrador mestre ativo do sistema' },
           { status: 400 }
         );
       }
     }
 
-    // Atualizar status de todos os perfis do usuário
     await prisma.perfilUsuario.updateMany({
       where: {
         usuarioId: id,
@@ -100,7 +84,6 @@ export async function PATCH(
       },
     });
 
-    // Buscar usuário atualizado
     const usuarioAtualizado = await prisma.usuario.findUnique({
       where: { id },
       include: {
@@ -118,22 +101,19 @@ export async function PATCH(
     });
 
     return NextResponse.json({
-      mensagem: `Usuário ${ativo ? 'ativado' : 'desativado'} com sucesso`,
+      mensagem: `Usuario ${ativo ? 'ativado' : 'desativado'} com sucesso`,
       usuario: usuarioAtualizado,
     });
   } catch (error) {
-    console.error('Erro ao alterar status do usuário:', error);
-    
+    console.error('Erro ao alterar status do usuario:', error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Dados inválidos', detalhes: error.issues },
+        { erro: 'Dados invalidos', detalhes: error.issues },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(
-      { erro: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
   }
 }

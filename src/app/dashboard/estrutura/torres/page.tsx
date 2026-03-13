@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Building2, Plus, Search, Edit, Trash2 } from 'lucide-react';
 import TorreModal from '@/components/modals/TorreModal';
 import { Layout } from '@/components/Layout';
@@ -39,19 +39,7 @@ export default function TorresPage() {
   const [editingTorre, setEditingTorre] = useState<Torre | null>(null);
   const [error, setError] = useState<string>('');
 
-  useEffect(() => {
-    fetchCondominios();
-  }, []);
-
-  useEffect(() => {
-    if (selectedCondominio) {
-      fetchTorres();
-    } else {
-      setTorres([]);
-    }
-  }, [selectedCondominio]);
-
-  const fetchCondominios = async () => {
+  const fetchCondominios = useCallback(async () => {
     try {
       const response = await fetch('/api/condominios');
       if (response.ok) {
@@ -65,9 +53,9 @@ export default function TorresPage() {
       console.error('Erro ao carregar condomínios:', error);
       setError('Erro ao carregar condomínios');
     }
-  };
+  }, []);
 
-  const fetchTorres = async () => {
+  const fetchTorres = useCallback(async () => {
     if (!selectedCondominio) return;
     
     setIsLoading(true);
@@ -87,7 +75,19 @@ export default function TorresPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedCondominio]);
+
+  useEffect(() => {
+    fetchCondominios();
+  }, [fetchCondominios]);
+
+  useEffect(() => {
+    if (selectedCondominio) {
+      fetchTorres();
+    } else {
+      setTorres([]);
+    }
+  }, [fetchTorres, selectedCondominio]);
 
   const handleSaveTorre = async (formData: TorreFormData) => {
     try {

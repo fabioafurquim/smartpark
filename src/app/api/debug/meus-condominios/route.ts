@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../lib/auth';
 import { UsuarioSessao } from '../../../../types';
@@ -7,7 +7,7 @@ import { UsuarioSessao } from '../../../../types';
  * GET /api/debug/meus-condominios
  * Debug: Listar condomínios do usuário logado
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {

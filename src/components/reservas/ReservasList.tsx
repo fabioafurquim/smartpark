@@ -1,16 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   Calendar as CalendarIcon, 
   Clock as ClockIcon, 
   MapPin as MapPinIcon, 
   User as UserIcon, 
-  MoreVertical as MoreVerticalIcon,
   Edit as EditIcon,
   X as XIcon,
   Check as CheckIcon,
-  Filter as FilterIcon,
   RefreshCw as RefreshCwIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -82,19 +80,7 @@ export default function ReservasList({ condominios, onEdit, onRefresh }: Reserva
     usuarioNome: '',
   });
 
-  useEffect(() => {
-    carregarReservas();
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      carregarReservas();
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [filtros]);
-
-  const carregarReservas = async () => {
+  const carregarReservas = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -125,12 +111,24 @@ export default function ReservasList({ condominios, onEdit, onRefresh }: Reserva
       } else {
         setError(data.error || 'Erro ao carregar reservas');
       }
-    } catch (err) {
+    } catch {
       setError('Erro ao carregar reservas');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filtros]);
+
+  useEffect(() => {
+    carregarReservas();
+  }, [carregarReservas]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      carregarReservas();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [carregarReservas, filtros]);
 
   const handleStatusChange = async (reservaId: string, novoStatus: string) => {
     try {
@@ -150,7 +148,7 @@ export default function ReservasList({ condominios, onEdit, onRefresh }: Reserva
       } else {
         setError(data.error || 'Erro ao atualizar status');
       }
-    } catch (err) {
+    } catch {
       setError('Erro ao atualizar status');
     }
   };

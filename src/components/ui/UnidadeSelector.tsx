@@ -124,25 +124,6 @@ export default function UnidadeSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchUnidades = async () => {
-    if (!condominioId) return;
-    
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/unidades?condominioId=${condominioId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setUnidades(data);
-        setPage(1);
-        setHasMore(data.length > ITEMS_PER_PAGE);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar unidades:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSelect = (unidade: Unidade) => {
     setSelectedUnidade(unidade);
     onChange(unidade.id);

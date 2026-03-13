@@ -35,7 +35,7 @@ export function ConfirmadorPagamento({ reserva, onPagamentoConfirmado }: Confirm
         throw new Error(erro.error || 'Erro ao confirmar pagamento');
       }
 
-      const dados = await response.json();
+      await response.json();
       onPagamentoConfirmado({
         ...reserva,
         statusPagamento: 'CONFIRMADO',

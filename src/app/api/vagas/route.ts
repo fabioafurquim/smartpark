@@ -114,6 +114,9 @@ const formatarVagaListagem = (vaga: VagaListagem) => ({
   id: vaga.id,
   numero: vaga.numero,
   tipo: vaga.tipo,
+  unidadeId: vaga.unidadeId,
+  condominioId: vaga.condominioId,
+  proprietarioId: vaga.proprietarioId,
   ocupada: !!vaga.proprietarioId,
   unidade: vaga.unidade,
   condominio: vaga.condominio,
@@ -145,7 +148,7 @@ export async function GET(request: NextRequest) {
       const status = searchParams.get('status');
 
       // O middleware já validou o acesso ao condomínio
-      let where: any = {
+      const where: Record<string, unknown> = {
         condominioId: condominioId
       };
 

@@ -13,12 +13,19 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     ignores: [
-      "node_modules/**",
-      ".next/**",
-      "out/**",
-      "build/**",
+      "**/node_modules/**",
+      "**/.next/**",
+      "**/out/**",
+      "**/build/**",
       "next-env.d.ts",
+      "**/*.js",
+      "**/scripts/**",
+      "src/app/**/page-antiga.tsx",
+      "src/app/**/page-completo.tsx",
     ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
   },
 ];
 

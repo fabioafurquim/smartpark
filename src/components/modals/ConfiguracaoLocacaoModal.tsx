@@ -89,7 +89,6 @@ export default function ConfiguracaoLocacaoModal({
       }
 
       // Validar valores
-      const valores: any = {};
       if (formData.tiposPermitidos.includes('HORA') && !formData.valorHora) {
         setErro('Defina o valor por hora');
         return;

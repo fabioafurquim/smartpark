@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Home, Plus, Search, Edit, Trash2, Building2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Home, Plus, Search, Edit, Trash2, Building2, ArrowRightLeft } from 'lucide-react';
 import UnidadeModal from '@/components/modals/UnidadeModal';
+import TransferirMoradorModal from '@/components/modals/TransferirMoradorModal';
 import { Layout } from '@/components/Layout';
 
 interface Unidade {
@@ -63,29 +64,10 @@ export default function UnidadesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUnidade, setEditingUnidade] = useState<Unidade | null>(null);
+  const [transferindoUnidade, setTransferindoUnidade] = useState<Unidade | null>(null);
   const [error, setError] = useState<string>('');
 
-  useEffect(() => {
-    fetchCondominios();
-  }, []);
-
-  useEffect(() => {
-    if (selectedCondominio) {
-      fetchTorres();
-      fetchUnidades();
-    } else {
-      setTorres([]);
-      setUnidades([]);
-    }
-  }, [selectedCondominio]);
-
-  useEffect(() => {
-    if (selectedCondominio) {
-      fetchUnidades();
-    }
-  }, [selectedTorre]);
-
-  const fetchCondominios = async () => {
+  const fetchCondominios = useCallback(async () => {
     try {
       const response = await fetch('/api/condominios');
       if (response.ok) {
@@ -99,9 +81,9 @@ export default function UnidadesPage() {
       console.error('Erro ao carregar condomínios:', error);
       setError('Erro ao carregar condomínios');
     }
-  };
+  }, []);
 
-  const fetchTorres = async () => {
+  const fetchTorres = useCallback(async () => {
     if (!selectedCondominio) return;
     
     try {
@@ -114,9 +96,9 @@ export default function UnidadesPage() {
       console.error('Erro ao carregar torres:', error);
       setError('Erro ao carregar torres');
     }
-  };
+  }, [selectedCondominio]);
 
-  const fetchUnidades = async () => {
+  const fetchUnidades = useCallback(async () => {
     if (!selectedCondominio) return;
     
     setIsLoading(true);
@@ -139,7 +121,27 @@ export default function UnidadesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedCondominio, selectedTorre]);
+
+  useEffect(() => {
+    fetchCondominios();
+  }, [fetchCondominios]);
+
+  useEffect(() => {
+    if (selectedCondominio) {
+      fetchTorres();
+      fetchUnidades();
+    } else {
+      setTorres([]);
+      setUnidades([]);
+    }
+  }, [fetchTorres, fetchUnidades, selectedCondominio]);
+
+  useEffect(() => {
+    if (selectedCondominio) {
+      fetchUnidades();
+    }
+  }, [fetchUnidades, selectedCondominio, selectedTorre]);
 
   const handleSaveUnidade = async (formData: UnidadeFormData) => {
     try {
@@ -205,6 +207,30 @@ export default function UnidadesPage() {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingUnidade(null);
+  };
+
+  const handleTransferirMorador = async (usuarioId: string) => {
+    if (!transferindoUnidade) {
+      return;
+    }
+
+    const response = await fetch(`/api/unidades/${transferindoUnidade.id}/transferir-morador`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ usuarioId }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Erro ao transferir morador');
+    }
+
+    await fetchUnidades();
+    setTransferindoUnidade(null);
+    setError('');
   };
 
   const filteredUnidades = unidades.filter(unidade =>
@@ -434,6 +460,13 @@ export default function UnidadesPage() {
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
+                          onClick={() => setTransferindoUnidade(unidade)}
+                          className="text-amber-600 hover:text-amber-900 p-1 rounded"
+                          title="Transferir morador"
+                        >
+                          <ArrowRightLeft className="h-4 w-4" />
+                        </button>
+                        <button
                           onClick={() => handleDeleteUnidade(unidade)}
                           className="text-red-600 hover:text-red-900 p-1 rounded"
                           title="Excluir"
@@ -458,6 +491,13 @@ export default function UnidadesPage() {
         unidade={editingUnidade}
         condominios={condominios}
         selectedCondominioId={selectedCondominio}
+      />
+      <TransferirMoradorModal
+        isOpen={!!transferindoUnidade}
+        unidade={transferindoUnidade}
+        condominioId={selectedCondominio}
+        onClose={() => setTransferindoUnidade(null)}
+        onTransferir={handleTransferirMorador}
       />
       </div>
     </Layout>

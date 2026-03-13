@@ -1,13 +1,13 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
-import { Users, Plus, Edit, Trash2, Search, Filter } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Users, Plus, Edit, Trash2, Search } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Layout } from '@/components';
 import { Button } from '@/components/ui';
 
 export default function UsuariosPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const usuario = session?.user as any;
 
   const [usuarios, setUsuarios] = useState<any[]>([]);
@@ -30,7 +30,7 @@ export default function UsuariosPage() {
   const [filtroTipo, setFiltroTipo] = useState('');
 
   // Verificar permissões
-  const temAcesso = () => {
+  const temAcesso = useMemo(() => {
     if (!usuario) return false;
     const perfis = usuario.perfis || [];
     return perfis.some((p: any) => 
@@ -38,7 +38,7 @@ export default function UsuariosPage() {
       p.tipo === 'administrador_condominio' ||
       p.tipo === 'sindico'
     );
-  };
+  }, [usuario]);
 
   const getCondominiosDisponiveis = () => {
     if (!usuario) return [];
@@ -74,18 +74,7 @@ export default function UsuariosPage() {
     return usuarioAlvo.perfis?.some((p: any) => condominiosDoUsuario.includes(p.condominioId));
   };
 
-  useEffect(() => {
-    if (!temAcesso()) {
-      setErro('Você não tem permissão para acessar esta página');
-      setCarregando(false);
-      return;
-    }
-    
-    carregarUsuarios();
-    carregarCondominios();
-  }, [usuario]);
-
-  const carregarCondominios = async () => {
+  const carregarCondominios = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/condominios');
       if (response.ok) {
@@ -95,11 +84,13 @@ export default function UsuariosPage() {
     } catch (err) {
       console.error('Erro ao carregar condomínios:', err);
     }
-  };
+  }, []);
 
-  const carregarUsuarios = async () => {
+  const carregarUsuarios = useCallback(async () => {
     try {
-      setCarregando(true);
+      if (usuarios.length === 0) {
+        setCarregando(true);
+      }
       setErro(null);
       
       const response = await fetch('/api/admin/usuarios');
@@ -108,13 +99,39 @@ export default function UsuariosPage() {
       }
       
       const dados = await response.json();
-      setUsuarios(Array.isArray(dados) ? dados : []);
+      if (Array.isArray(dados)) {
+        setUsuarios(dados);
+      } else if (Array.isArray(dados.usuarios)) {
+        setUsuarios(dados.usuarios);
+      } else {
+        setUsuarios([]);
+      }
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setCarregando(false);
     }
-  };
+  }, [usuarios.length]);
+
+  useEffect(() => {
+    if (status === 'loading') {
+      return;
+    }
+
+    if (status !== 'authenticated') {
+      setCarregando(false);
+      return;
+    }
+
+    if (!temAcesso) {
+      setErro('Você não tem permissão para acessar esta página');
+      setCarregando(false);
+      return;
+    }
+    
+    void carregarUsuarios();
+    void carregarCondominios();
+  }, [status, temAcesso, carregarUsuarios, carregarCondominios]);
 
   const abrirModalNovoUsuario = () => {
     setUsuarioEditando(null);
@@ -235,7 +252,7 @@ export default function UsuariosPage() {
     return matchBusca && matchCondominio && matchTipo;
   });
 
-  if (!temAcesso()) {
+  if (status !== 'loading' && !temAcesso) {
     return (
       <Layout>
         <div className="p-8 text-center">
@@ -485,7 +502,7 @@ export default function UsuariosPage() {
                   onClick={() => setModalAberto(false)}
                   className="text-gray-400 hover:text-gray-600"
                 >
-                  ✕
+                  ?
                 </button>
               </div>
 
@@ -652,3 +669,4 @@ export default function UsuariosPage() {
     </Layout>
   );
 }
+

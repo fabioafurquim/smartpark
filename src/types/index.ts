@@ -231,6 +231,9 @@ export interface FormularioReserva {
 }
 
 export interface FormularioSolicitacaoCadastro {
+  nome?: string;
+  email?: string;
+  senha?: string;
   codigoCondominio: string;
   unidadeId: string;
   vagaId?: string;

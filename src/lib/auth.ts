@@ -213,6 +213,7 @@ export function temPermissao(
         return [
           'gerenciarUsuarios',
           'gerenciarEstrutura',
+          'aprovarSolicitacoes',
           'visualizarRelatorios',
           'configurarSistema',
         ].includes(permissao);

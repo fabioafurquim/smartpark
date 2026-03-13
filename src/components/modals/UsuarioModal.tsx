@@ -313,7 +313,7 @@ export default function UsuarioModal({
 
             {formData.perfis.length === 0 ? (
               <p className="text-sm text-gray-600 italic">
-                Nenhum perfil adicionado. Clique em "Adicionar Perfil" para começar.
+                Nenhum perfil adicionado. Clique em &quot;Adicionar Perfil&quot; para começar.
               </p>
             ) : (
               <div className="space-y-3">

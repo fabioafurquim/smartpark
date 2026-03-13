@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { Calendar, CheckCircle, XCircle, Clock, User, DollarSign, Building2, AlertCircle } from 'lucide-react';
 import { Layout } from '@/components';
 
@@ -38,9 +37,6 @@ interface Locacao {
 }
 
 export default function ReservasAdminPage() {
-  const { data: session } = useSession();
-  const usuario = session?.user as any;
-  
   const [locacoes, setLocacoes] = useState<Locacao[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<string>('TODAS');

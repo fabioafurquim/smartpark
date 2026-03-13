@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Layout } from '@/components/Layout';
@@ -113,7 +114,7 @@ export default function DashboardPage() {
   const getCardsParaPerfil = () => {
     if (!estatisticas) return [];
 
-    const { perfil, cards, metricas } = estatisticas;
+    const { perfil, cards } = estatisticas;
 
     if (perfil === 'administrador_mestre') {
       return [
@@ -482,59 +483,59 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {estatisticas?.perfil === 'administrador_mestre' && (
               <>
-                <a href="/dashboard/condominios/novo" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                <Link href="/dashboard/condominios/novo" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Building2 className="w-8 h-8 text-blue-600 mb-2" />
                   <h4 className="font-medium text-gray-900">Novo Condomínio</h4>
                   <p className="text-sm text-gray-600">Cadastrar um novo condomínio</p>
-                </a>
-                <a href="/dashboard/usuarios" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                </Link>
+                <Link href="/dashboard/usuarios" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Users className="w-8 h-8 text-green-600 mb-2" />
                   <h4 className="font-medium text-gray-900">Gerenciar Usuários</h4>
                   <p className="text-sm text-gray-600">Adicionar ou editar usuários</p>
-                </a>
-                <a href="/reservas-admin" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                </Link>
+                <Link href="/reservas-admin" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <BarChart3 className="w-8 h-8 text-purple-600 mb-2" />
                   <h4 className="font-medium text-gray-900">Reservas Globais</h4>
                   <p className="text-sm text-gray-600">Ver todas as locações</p>
-                </a>
+                </Link>
               </>
             )}
             {estatisticas?.perfil === 'sindico' && (
               <>
-                <a href="/dashboard/estrutura/vagas" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                <Link href="/dashboard/estrutura/vagas" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Car className="w-8 h-8 text-blue-600 mb-2" />
                   <h4 className="font-medium text-gray-900">Gerenciar Vagas</h4>
                   <p className="text-sm text-gray-600">Administrar vagas do condomínio</p>
-                </a>
-                <a href="/dashboard/estrutura/unidades" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                </Link>
+                <Link href="/dashboard/estrutura/unidades" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Home className="w-8 h-8 text-green-600 mb-2" />
                   <h4 className="font-medium text-gray-900">Gerenciar Unidades</h4>
                   <p className="text-sm text-gray-600">Administrar unidades</p>
-                </a>
-                <a href="/minhas-locacoes" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                </Link>
+                <Link href="/minhas-locacoes" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Calendar className="w-8 h-8 text-purple-600 mb-2" />
                   <h4 className="font-medium text-gray-900">Ver Locações</h4>
                   <p className="text-sm text-gray-600">Acompanhar locações</p>
-                </a>
+                </Link>
               </>
             )}
             {estatisticas?.perfil === 'morador' && (
               <>
-                <a href="/locacao" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                <Link href="/locacao" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Car className="w-8 h-8 text-blue-600 mb-2" />
                   <h4 className="font-medium text-gray-900">Alugar Vaga</h4>
                   <p className="text-sm text-gray-600">Encontrar vagas disponíveis</p>
-                </a>
-                <a href="/minhas-locacoes" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                </Link>
+                <Link href="/minhas-locacoes" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Calendar className="w-8 h-8 text-green-600 mb-2" />
                   <h4 className="font-medium text-gray-900">Minhas Locações</h4>
                   <p className="text-sm text-gray-600">Acompanhar suas locações</p>
-                </a>
-                <a href="/minhas-vagas" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                </Link>
+                <Link href="/minhas-vagas" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <DollarSign className="w-8 h-8 text-purple-600 mb-2" />
                   <h4 className="font-medium text-gray-900">Minhas Vagas</h4>
                   <p className="text-sm text-gray-600">Gerenciar suas vagas</p>
-                </a>
+                </Link>
               </>
             )}
           </div>

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { MapPin, Plus, Search, Filter, Calendar, DollarSign, Building2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { MapPin, Search, Filter, Calendar, DollarSign, Building2 } from 'lucide-react';
 import { Layout } from '@/components';
 import { Button } from '@/components/ui';
 import LocacaoModal from '@/components/modals/LocacaoModal';
@@ -27,7 +28,6 @@ interface Vaga {
   proprietario: {
     id: string;
     nome: string;
-    email: string;
   };
   configuracaoLocacao: {
     disponivel: boolean;
@@ -40,44 +40,34 @@ interface Vaga {
 }
 
 export default function LocacaoPage() {
+  const { data: session } = useSession();
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [condominioFiltro, setCondominioFiltro] = useState<string>('');
   const [tipoFiltro, setTipoFiltro] = useState<string>('TODAS');
-  const [condominios, setCondominios] = useState<{id: string, nome: string}[]>([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [vagaSelecionada, setVagaSelecionada] = useState<Vaga | null>(null);
 
-  // Carregar condomínios na primeira vez
-  useEffect(() => {
-    const carregarCondominios = async () => {
-      try {
-        const response = await fetch('/api/condominios');
-        if (response.ok) {
-          const dados = await response.json();
-          const lista = dados.condominios || [];
-          setCondominios(lista);
-        }
-      } catch (error) {
-        console.error('Erro ao carregar condomínios:', error);
-      }
-    };
+  const condominios = useMemo(() => {
+    const perfis =
+      ((session?.user as {
+        perfis?: Array<{ condominio: { id: string; nome: string } | null }>;
+      })?.perfis || []);
 
-    carregarCondominios();
-  }, []);
+    return Array.from(
+      new Map(
+        perfis
+          .filter((perfil) => perfil.condominio)
+          .map((perfil) => [perfil.condominio!.id, perfil.condominio!])
+      ).values()
+    );
+  }, [session?.user]);
 
-  // Carregar vagas disponíveis
   useEffect(() => {
     const carregarVagas = async () => {
       try {
         setCarregando(true);
-        const url = new URL('/api/vagas/disponiveis', window.location.origin);
-        if (condominioFiltro) {
-          url.searchParams.append('condominioId', condominioFiltro);
-        }
-        
-        const response = await fetch(url.toString());
+        const response = await fetch('/api/vagas/disponiveis');
         if (response.ok) {
           const dados = await response.json();
           setVagas(dados);
@@ -89,19 +79,19 @@ export default function LocacaoPage() {
       }
     };
 
-    carregarVagas();
-  }, [condominioFiltro]);
+    void carregarVagas();
+  }, []);
 
-  // Filtrar vagas
-  const vagasFiltradas = vagas.filter(vaga => {
-    const matchSearch = 
-      vaga.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vaga.unidade.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vaga.unidade.torre.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vaga.proprietario.nome.toLowerCase().includes(searchTerm.toLowerCase());
-    
+  const vagasFiltradas = vagas.filter((vaga) => {
+    const termo = searchTerm.toLowerCase();
+    const matchSearch =
+      vaga.numero.toLowerCase().includes(termo) ||
+      vaga.unidade.numero.toLowerCase().includes(termo) ||
+      vaga.unidade.torre.nome.toLowerCase().includes(termo) ||
+      vaga.proprietario.nome.toLowerCase().includes(termo);
+
     const matchTipo = tipoFiltro === 'TODAS' || vaga.tipo === tipoFiltro;
-    
+
     return matchSearch && matchTipo;
   });
 
@@ -133,39 +123,32 @@ export default function LocacaoPage() {
   };
 
   const getValorExibicao = (vaga: Vaga) => {
-    const valores = [];
+    const valores: string[] = [];
     if (vaga.configuracaoLocacao.valorHora) {
-      const valor = typeof vaga.configuracaoLocacao.valorHora === 'number' 
-        ? vaga.configuracaoLocacao.valorHora 
-        : parseFloat(String(vaga.configuracaoLocacao.valorHora));
-      valores.push(`R$ ${valor.toFixed(2)}/h`);
+      valores.push(`R$ ${Number(vaga.configuracaoLocacao.valorHora).toFixed(2)}/h`);
     }
     if (vaga.configuracaoLocacao.valorDiaria) {
-      const valor = typeof vaga.configuracaoLocacao.valorDiaria === 'number' 
-        ? vaga.configuracaoLocacao.valorDiaria 
-        : parseFloat(String(vaga.configuracaoLocacao.valorDiaria));
-      valores.push(`R$ ${valor.toFixed(2)}/dia`);
+      valores.push(`R$ ${Number(vaga.configuracaoLocacao.valorDiaria).toFixed(2)}/dia`);
     }
     if (vaga.configuracaoLocacao.valorMensal) {
-      const valor = typeof vaga.configuracaoLocacao.valorMensal === 'number' 
-        ? vaga.configuracaoLocacao.valorMensal 
-        : parseFloat(String(vaga.configuracaoLocacao.valorMensal));
-      valores.push(`R$ ${valor.toFixed(2)}/mês`);
+      valores.push(`R$ ${Number(vaga.configuracaoLocacao.valorMensal).toFixed(2)}/mes`);
     }
     if (vaga.configuracaoLocacao.valorAnual) {
-      const valor = typeof vaga.configuracaoLocacao.valorAnual === 'number' 
-        ? vaga.configuracaoLocacao.valorAnual 
-        : parseFloat(String(vaga.configuracaoLocacao.valorAnual));
-      valores.push(`R$ ${valor.toFixed(2)}/ano`);
+      valores.push(`R$ ${Number(vaga.configuracaoLocacao.valorAnual).toFixed(2)}/ano`);
     }
-    return valores.join(' • ');
+    return valores.join(' | ');
   };
+
+  const escopoAtual =
+    condominios.length === 1
+      ? condominios[0]?.nome
+      : `${condominios.length} condominios no seu escopo`;
 
   if (carregando) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       </Layout>
     );
@@ -174,19 +157,21 @@ export default function LocacaoPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
             <MapPin className="h-8 w-8 text-blue-600" />
-            Locação de Vagas
+            Locacao de vagas
           </h1>
-          <p className="text-gray-600 mt-1">Encontre e locue vagas disponíveis de outros moradores</p>
+          <p className="text-gray-600 mt-1">
+            Veja apenas vagas publicadas no seu proprio condominio e solicite a locacao sem etapas confusas.
+          </p>
+          <div className="mt-3 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+            Escopo atual: {escopoAtual}
+          </div>
         </div>
 
-        {/* Filtros */}
         <div className="bg-white rounded-lg shadow-sm border p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Busca */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <Search className="h-4 w-4 inline mr-1" />
@@ -194,32 +179,13 @@ export default function LocacaoPage() {
               </label>
               <input
                 type="text"
-                placeholder="Vaga, unidade, torre..."
+                placeholder="Vaga, unidade ou torre"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            {/* Condomínio */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Building2 className="h-4 w-4 inline mr-1" />
-                Condomínio
-              </label>
-              <select
-                value={condominioFiltro}
-                onChange={(e) => setCondominioFiltro(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Todos</option>
-                {condominios.map(cond => (
-                  <option key={cond.id} value={cond.id}>{cond.nome}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tipo */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <Filter className="h-4 w-4 inline mr-1" />
@@ -239,27 +205,29 @@ export default function LocacaoPage() {
               </select>
             </div>
 
-            {/* Info */}
             <div className="flex items-end">
               <div className="text-sm text-gray-600">
-                <p className="font-medium">{vagasFiltradas.length} vaga(s) disponível(is)</p>
+                <p className="font-medium">{vagasFiltradas.length} vaga(s) disponivel(is)</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Lista de Vagas */}
         {vagasFiltradas.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
             <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600 text-lg">Nenhuma vaga disponível com os filtros selecionados</p>
+            <p className="text-gray-600 text-lg">
+              Nenhuma vaga disponivel com os filtros selecionados
+            </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {vagasFiltradas.map(vaga => (
-              <div key={vaga.id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {vagasFiltradas.map((vaga) => (
+              <div
+                key={vaga.id}
+                className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition-shadow"
+              >
                 <div className="p-4 space-y-3">
-                  {/* Header */}
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-lg font-bold text-gray-900">Vaga {vaga.numero}</h3>
@@ -267,44 +235,37 @@ export default function LocacaoPage() {
                         {vaga.unidade.torre.nome} - Unidade {vaga.unidade.numero}
                       </p>
                     </div>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getTipoColor(vaga.tipo)}`}>
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-medium ${getTipoColor(vaga.tipo)}`}
+                    >
                       {vaga.tipo}
                     </span>
                   </div>
 
-                  {/* Condomínio */}
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Building2 className="h-4 w-4" />
                     {vaga.condominio.nome}
                   </div>
 
-                  {/* Proprietário */}
-                  {vaga.proprietario && (
-                    <div className="bg-gray-50 p-2 rounded text-sm">
-                      <p className="text-gray-600">Proprietário</p>
-                      <p className="font-medium text-gray-900">{vaga.proprietario.nome}</p>
-                      <p className="text-xs text-gray-500">{vaga.proprietario.email}</p>
-                    </div>
-                  )}
-
-                  {/* Valores */}
-                  <div className="bg-blue-50 p-2 rounded text-sm">
-                    <div className="flex items-center gap-1 text-gray-600 mb-1">
-                      <DollarSign className="h-4 w-4" />
-                      Valores
-                    </div>
-                    <p className="font-medium text-blue-900 text-xs">
-                      {getValorExibicao(vaga)}
-                    </p>
+                  <div className="rounded-xl bg-gray-50 p-3 text-sm">
+                    <p className="text-gray-600">Morador responsavel</p>
+                    <p className="font-medium text-gray-900">{vaga.proprietario.nome}</p>
                   </div>
 
-                  {/* Botão */}
+                  <div className="rounded-xl bg-blue-50 p-3 text-sm">
+                    <div className="flex items-center gap-1 text-gray-600 mb-1">
+                      <DollarSign className="h-4 w-4" />
+                      Valores publicados
+                    </div>
+                    <p className="font-medium text-blue-900 text-xs">{getValorExibicao(vaga)}</p>
+                  </div>
+
                   <Button
                     onClick={() => abrirModalLocacao(vaga)}
                     className="w-full flex items-center justify-center gap-2"
                   >
                     <Calendar className="h-4 w-4" />
-                    Locar Vaga
+                    Solicitar locacao
                   </Button>
                 </div>
               </div>
@@ -312,7 +273,6 @@ export default function LocacaoPage() {
           </div>
         )}
 
-        {/* Modal de Locação */}
         {vagaSelecionada && (
           <LocacaoModal
             isOpen={modalAberto}
@@ -320,7 +280,6 @@ export default function LocacaoPage() {
             vaga={vagaSelecionada}
             onSuccess={() => {
               fecharModal();
-              // Recarregar vagas
               window.location.reload();
             }}
           />

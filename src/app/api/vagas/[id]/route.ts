@@ -1,63 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { authOptions, temPermissao } from '../../../../lib/auth';
 import { prisma } from '../../../../lib/prisma';
-import { z } from 'zod';
 import { UsuarioSessao } from '../../../../types';
 
-// Schema de validação para atualização de vaga
 const tipoLocacaoValues = ['HORA', 'DIARIA', 'MENSAL', 'ANUAL'] as const;
 
-const decimalField = z.coerce.number()
-  .min(0, 'Valor não pode ser negativo')
+const decimalField = z.coerce
+  .number()
+  .min(0, 'Valor nao pode ser negativo')
   .nullable()
   .optional();
 
-const configuracaoLocacaoSchema = z.object({
-  disponivel: z.boolean(),
-  tiposPermitidos: z.array(z.enum(tipoLocacaoValues)).default([]),
-  valorHora: decimalField,
-  valorDiaria: decimalField,
-  valorMensal: decimalField,
-  valorAnual: decimalField
-}).superRefine((data, ctx) => {
-  if (data.disponivel && data.tiposPermitidos.length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Selecione ao menos um tipo de locação ao disponibilizar a vaga',
-      path: ['tiposPermitidos']
-    });
-  }
-
-  const tipoPorCampo: Record<string, typeof tipoLocacaoValues[number]> = {
-    valorHora: 'HORA',
-    valorDiaria: 'DIARIA',
-    valorMensal: 'MENSAL',
-    valorAnual: 'ANUAL'
-  };
-
-  (['valorHora', 'valorDiaria', 'valorMensal', 'valorAnual'] as const).forEach((campo) => {
-    const valor = data[campo];
-    if (valor !== undefined && valor !== null) {
-      const tipoNecessario = tipoPorCampo[campo];
-      if (!data.tiposPermitidos.includes(tipoNecessario)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Inclua o tipo ${tipoNecessario.toLowerCase()} em tiposPermitidos para definir ${campo}`,
-          path: ['tiposPermitidos']
-        });
-      }
+const configuracaoLocacaoSchema = z
+  .object({
+    disponivel: z.boolean(),
+    tiposPermitidos: z.array(z.enum(tipoLocacaoValues)).default([]),
+    valorHora: decimalField,
+    valorDiaria: decimalField,
+    valorMensal: decimalField,
+    valorAnual: decimalField,
+  })
+  .superRefine((data, ctx) => {
+    if (data.disponivel && data.tiposPermitidos.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Selecione ao menos um tipo de locacao ao disponibilizar a vaga',
+        path: ['tiposPermitidos'],
+      });
     }
+
+    const tipoPorCampo: Record<string, (typeof tipoLocacaoValues)[number]> = {
+      valorHora: 'HORA',
+      valorDiaria: 'DIARIA',
+      valorMensal: 'MENSAL',
+      valorAnual: 'ANUAL',
+    };
+
+    (['valorHora', 'valorDiaria', 'valorMensal', 'valorAnual'] as const).forEach(
+      (campo) => {
+        const valor = data[campo];
+
+        if (valor !== undefined && valor !== null) {
+          const tipoNecessario = tipoPorCampo[campo];
+
+          if (!data.tiposPermitidos.includes(tipoNecessario)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Inclua o tipo ${tipoNecessario.toLowerCase()} em tiposPermitidos para definir ${campo}`,
+              path: ['tiposPermitidos'],
+            });
+          }
+        }
+      }
+    );
   });
-});
 
 const updateVagaSchema = z.object({
-  numero: z.string().min(1, 'Número é obrigatório').optional(),
-  tipo: z.enum(['COBERTA', 'DESCOBERTA', 'DEFICIENTE', 'IDOSO', 'VISITANTE']).optional(),
-  observacoes: z.string().optional(),
-  proprietarioId: z.string().min(1, 'Proprietário é obrigatório').nullable().optional(),
-  configuracaoLocacao: configuracaoLocacaoSchema.optional()
+  numero: z.string().min(1, 'Numero e obrigatorio').optional(),
+  tipo: z
+    .enum(['COBERTA', 'DESCOBERTA', 'DEFICIENTE', 'IDOSO', 'VISITANTE'])
+    .optional(),
+  unidadeId: z.string().min(1, 'Unidade e obrigatoria').optional(),
+  proprietarioId: z
+    .string()
+    .min(1, 'Proprietario e obrigatorio')
+    .nullable()
+    .optional(),
+  configuracaoLocacao: configuracaoLocacaoSchema.optional(),
 });
 
 type UpdateVagaPayload = z.infer<typeof updateVagaSchema>;
@@ -67,8 +79,8 @@ const vagaInclude = Prisma.validator<Prisma.VagaInclude>()({
   condominio: {
     select: {
       id: true,
-      nome: true
-    }
+      nome: true,
+    },
   },
   unidade: {
     select: {
@@ -80,17 +92,17 @@ const vagaInclude = Prisma.validator<Prisma.VagaInclude>()({
         select: {
           id: true,
           nome: true,
-          tipo: true
-        }
-      }
-    }
+          tipo: true,
+        },
+      },
+    },
   },
   proprietario: {
     select: {
       id: true,
       nome: true,
-      email: true
-    }
+      email: true,
+    },
   },
   configuracaoLocacao: {
     select: {
@@ -103,9 +115,9 @@ const vagaInclude = Prisma.validator<Prisma.VagaInclude>()({
       valorMensal: true,
       valorAnual: true,
       criadoEm: true,
-      atualizadoEm: true
-    }
-  }
+      atualizadoEm: true,
+    },
+  },
 });
 
 const vagaArgs = Prisma.validator<Prisma.VagaDefaultArgs>()({ include: vagaInclude });
@@ -138,7 +150,7 @@ const formatarConfiguracaoLocacao = (
     valorMensal: decimalToNumber(configuracao.valorMensal),
     valorAnual: decimalToNumber(configuracao.valorAnual),
     criadoEm: configuracao.criadoEm.toISOString(),
-    atualizadoEm: configuracao.atualizadoEm.toISOString()
+    atualizadoEm: configuracao.atualizadoEm.toISOString(),
   };
 };
 
@@ -147,11 +159,6 @@ const atualizarConfiguracaoLocacao = async (
   configuracao: ConfiguracaoLocacaoPayload
 ) => {
   if (configuracao === undefined) {
-    return;
-  }
-
-  if (configuracao === null) {
-    await prisma.configuracaoLocacaoVaga.deleteMany({ where: { vagaId } });
     return;
   }
 
@@ -164,7 +171,7 @@ const atualizarConfiguracaoLocacao = async (
       valorHora: toDecimalOrNull(configuracao.valorHora),
       valorDiaria: toDecimalOrNull(configuracao.valorDiaria),
       valorMensal: toDecimalOrNull(configuracao.valorMensal),
-      valorAnual: toDecimalOrNull(configuracao.valorAnual)
+      valorAnual: toDecimalOrNull(configuracao.valorAnual),
     },
     update: {
       disponivel: configuracao.disponivel,
@@ -172,8 +179,8 @@ const atualizarConfiguracaoLocacao = async (
       valorHora: toDecimalOrUndefined(configuracao.valorHora),
       valorDiaria: toDecimalOrUndefined(configuracao.valorDiaria),
       valorMensal: toDecimalOrUndefined(configuracao.valorMensal),
-      valorAnual: toDecimalOrUndefined(configuracao.valorAnual)
-    }
+      valorAnual: toDecimalOrUndefined(configuracao.valorAnual),
+    },
   });
 };
 
@@ -188,47 +195,78 @@ const formatarVaga = (vaga: VagaComRelacionamentos | null) => {
     tipo: vaga.tipo,
     condominioId: vaga.condominioId,
     unidadeId: vaga.unidadeId,
+    proprietarioId: vaga.proprietarioId,
     condominio: vaga.condominio,
     unidade: vaga.unidade,
     proprietario: vaga.proprietario,
     configuracaoLocacao: formatarConfiguracaoLocacao(vaga.configuracaoLocacao),
     criadoEm: vaga.criadoEm.toISOString(),
-    atualizadoEm: vaga.atualizadoEm.toISOString()
+    atualizadoEm: vaga.atualizadoEm.toISOString(),
   };
 };
 
-/**
- * GET /api/vagas/[id] - Busca vaga específica
- */
+const buscarVagaOuErro = async (id: string) =>
+  prisma.vaga.findUnique({
+    where: { id },
+    ...vagaArgs,
+  });
+
+const validarPermissaoEstrutura = (usuario: UsuarioSessao, condominioId: string) => {
+  if (!temPermissao(usuario, 'gerenciarEstrutura', condominioId)) {
+    return NextResponse.json(
+      { error: 'Acesso negado ao condominio especificado' },
+      { status: 403 }
+    );
+  }
+
+  return null;
+};
+
+const verificarMovimentacaoAtiva = async (vagaId: string) => {
+  const [locacoesAtivas, reservasAtivas] = await Promise.all([
+    prisma.locacao.count({
+      where: {
+        vagaId,
+        status: {
+          in: ['PENDENTE', 'ATIVA'],
+        },
+      },
+    }),
+    prisma.reserva.count({
+      where: {
+        vagaId,
+        status: {
+          in: ['ativa', 'confirmada', 'ATIVA', 'CONFIRMADA'],
+        },
+      },
+    }),
+  ]);
+
+  return locacoesAtivas > 0 || reservasAtivas > 0;
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
     }
 
     const usuario = session.user as UsuarioSessao;
     const { id } = await params;
-    const vaga = await prisma.vaga.findUnique({
-      where: { id },
-      ...vagaArgs
-    });
+    const vaga = await buscarVagaOuErro(id);
 
     if (!vaga) {
-      return NextResponse.json(
-        { error: 'Vaga não encontrada' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Vaga nao encontrada' }, { status: 404 });
     }
 
-    if (!temPermissao(usuario, 'gerenciarEstrutura', vaga.condominioId)) {
-      return NextResponse.json(
-        { error: 'Acesso negado ao condomínio especificado' },
-        { status: 403 }
-      );
+    const respostaPermissao = validarPermissaoEstrutura(usuario, vaga.condominioId);
+    if (respostaPermissao) {
+      return respostaPermissao;
     }
 
     return NextResponse.json(formatarVaga(vaga));
@@ -241,17 +279,15 @@ export async function GET(
   }
 }
 
-/**
- * PUT /api/vagas/[id] - Atualiza vaga
- */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
     }
 
     const usuario = session.user as UsuarioSessao;
@@ -259,41 +295,79 @@ export async function PUT(
     const body = await request.json();
     const validatedData = updateVagaSchema.parse(body);
 
-    // Verificar se a vaga existe
     const vagaExistente = await prisma.vaga.findUnique({
-      where: { id }
+      where: { id },
+      select: {
+        id: true,
+        numero: true,
+        condominioId: true,
+        unidadeId: true,
+        proprietarioId: true,
+      },
     });
 
     if (!vagaExistente) {
-      return NextResponse.json(
-        { error: 'Vaga não encontrada' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Vaga nao encontrada' }, { status: 404 });
     }
 
-    if (!temPermissao(usuario, 'gerenciarEstrutura', vagaExistente.condominioId)) {
-      return NextResponse.json(
-        { error: 'Acesso negado ao condomínio especificado' },
-        { status: 403 }
-      );
+    const respostaPermissao = validarPermissaoEstrutura(
+      usuario,
+      vagaExistente.condominioId
+    );
+    if (respostaPermissao) {
+      return respostaPermissao;
     }
 
-    // Se está alterando o número, verificar duplicatas no mesmo condomínio
     if (validatedData.numero && validatedData.numero !== vagaExistente.numero) {
       const vagaComMesmoNumero = await prisma.vaga.findFirst({
         where: {
           numero: validatedData.numero,
           condominioId: vagaExistente.condominioId,
-          id: { not: id }
-        }
+          id: { not: id },
+        },
       });
 
       if (vagaComMesmoNumero) {
         return NextResponse.json(
-          { error: 'Já existe uma vaga com este número neste condomínio' },
+          { error: 'Ja existe uma vaga com este numero neste condominio' },
           { status: 400 }
         );
       }
+    }
+
+    let unidadeIdAtualizada = vagaExistente.unidadeId;
+
+    if (validatedData.unidadeId && validatedData.unidadeId !== vagaExistente.unidadeId) {
+      const unidade = await prisma.unidade.findFirst({
+        where: {
+          id: validatedData.unidadeId,
+          condominioId: vagaExistente.condominioId,
+        },
+        select: {
+          id: true,
+          usuarioId: true,
+        },
+      });
+
+      if (!unidade) {
+        return NextResponse.json(
+          { error: 'Unidade nao encontrada ou fora do condominio desta vaga' },
+          { status: 400 }
+        );
+      }
+
+      const possuiMovimentacaoAtiva = await verificarMovimentacaoAtiva(id);
+      if (possuiMovimentacaoAtiva) {
+        return NextResponse.json(
+          {
+            error:
+              'Nao e possivel alterar a unidade de uma vaga com locacoes ou reservas ativas',
+          },
+          { status: 400 }
+        );
+      }
+
+      unidadeIdAtualizada = unidade.id;
     }
 
     let proprietarioIdAtualizado = vagaExistente.proprietarioId;
@@ -309,46 +383,54 @@ export async function PUT(
               where: {
                 condominioId: vagaExistente.condominioId,
                 tipo: 'morador',
-                ativo: true
-              }
-            }
-          }
+                ativo: true,
+              },
+            },
+          },
         });
 
         if (!proprietario || proprietario.perfis.length === 0) {
           return NextResponse.json(
-            { error: 'Proprietário informado não é um morador ativo deste condomínio' },
+            {
+              error: 'Proprietario informado nao e um morador ativo deste condominio',
+            },
             { status: 400 }
           );
         }
 
         proprietarioIdAtualizado = validatedData.proprietarioId;
       }
-    }
+    } else if (unidadeIdAtualizada !== vagaExistente.unidadeId) {
+      const unidadeAtualizada = await prisma.unidade.findUnique({
+        where: { id: unidadeIdAtualizada },
+        select: { usuarioId: true },
+      });
 
-    const { configuracaoLocacao, ...dadosVaga } = validatedData;
+      proprietarioIdAtualizado = unidadeAtualizada?.usuarioId ?? null;
+    }
 
     const vagaAtualizada = await prisma.vaga.update({
       where: { id },
       data: {
-        ...dadosVaga,
-        proprietarioId: proprietarioIdAtualizado ?? undefined
+        numero: validatedData.numero,
+        tipo: validatedData.tipo,
+        unidadeId: unidadeIdAtualizada,
+        proprietarioId: proprietarioIdAtualizado,
       },
-      ...vagaArgs
+      ...vagaArgs,
     });
 
-    await atualizarConfiguracaoLocacao(vagaAtualizada.id, configuracaoLocacao);
+    if (validatedData.configuracaoLocacao !== undefined) {
+      await atualizarConfiguracaoLocacao(vagaAtualizada.id, validatedData.configuracaoLocacao);
+    }
 
-    const vagaComRelacionamentos = await prisma.vaga.findUnique({
-      where: { id: vagaAtualizada.id },
-      ...vagaArgs
-    });
+    const vagaComRelacionamentos = await buscarVagaOuErro(vagaAtualizada.id);
 
     return NextResponse.json(formatarVaga(vagaComRelacionamentos));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Dados inválidos', details: error.issues },
+        { error: 'Dados invalidos', details: error.issues },
         { status: 400 }
       );
     }
@@ -361,67 +443,50 @@ export async function PUT(
   }
 }
 
-/**
- * DELETE /api/vagas/[id] - Remove vaga
- */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
     }
 
     const usuario = session.user as UsuarioSessao;
     const { id } = await params;
-    
-    // Verificar se a vaga existe
     const vaga = await prisma.vaga.findUnique({
-      where: { id }
+      where: { id },
+      select: {
+        id: true,
+        condominioId: true,
+      },
     });
 
     if (!vaga) {
-      return NextResponse.json(
-        { error: 'Vaga não encontrada' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Vaga nao encontrada' }, { status: 404 });
     }
 
-    if (!temPermissao(usuario, 'gerenciarEstrutura', vaga.condominioId)) {
-      return NextResponse.json(
-        { error: 'Acesso negado ao condomínio especificado' },
-        { status: 403 }
-      );
+    const respostaPermissao = validarPermissaoEstrutura(usuario, vaga.condominioId);
+    if (respostaPermissao) {
+      return respostaPermissao;
     }
 
-    // Verificar se há reservas ativas para esta vaga
-    const reservasAtivas = await prisma.reserva.count({
-      where: {
-        vagaId: id,
-        status: {
-          in: ['ativa', 'confirmada', 'ATIVA', 'CONFIRMADA']
-        }
-      }
-    });
-
-    if (reservasAtivas > 0) {
+    const possuiMovimentacaoAtiva = await verificarMovimentacaoAtiva(id);
+    if (possuiMovimentacaoAtiva) {
       return NextResponse.json(
-        { 
-          error: 'Não é possível excluir vaga com reservas ativas',
-          details: 'Cancele ou finalize as reservas antes de excluir a vaga' 
+        {
+          error: 'Nao e possivel excluir uma vaga com locacoes ou reservas ativas',
         },
         { status: 400 }
       );
     }
 
-    await prisma.vaga.delete({
-      where: { id }
-    });
+    await prisma.vaga.delete({ where: { id } });
 
     return NextResponse.json(
-      { message: 'Vaga excluída com sucesso' },
+      { message: 'Vaga excluida com sucesso' },
       { status: 200 }
     );
   } catch (error) {

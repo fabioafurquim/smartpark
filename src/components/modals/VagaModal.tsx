@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Car } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Car, X } from 'lucide-react';
 import UnidadeSelector from '@/components/ui/UnidadeSelector';
 
 interface Vaga {
@@ -11,15 +11,6 @@ interface Vaga {
   unidadeId?: string;
   condominioId?: string;
   proprietarioId?: string;
-  ocupada?: boolean;
-  unidade?: {
-    id: string;
-    numero: string;
-  };
-  condominio?: {
-    id: string;
-    nome: string;
-  };
 }
 
 interface Condominio {
@@ -44,76 +35,88 @@ interface VagaModalProps {
   selectedCondominioId?: string;
 }
 
+const getInitialFormData = (selectedCondominioId?: string): VagaFormData => ({
+  numero: '',
+  tipo: 'DESCOBERTA',
+  unidadeId: '',
+  condominioId: selectedCondominioId || '',
+  proprietarioId: undefined,
+});
+
 export default function VagaModal({
   isOpen,
   onClose,
   onSave,
   vaga,
   condominios,
-  selectedCondominioId
+  selectedCondominioId,
 }: VagaModalProps) {
-  const [formData, setFormData] = useState<VagaFormData>({
-    numero: '',
-    tipo: 'DESCOBERTA',
-    unidadeId: '', // Será obrigatório na validação
-    condominioId: selectedCondominioId || ''
-  });
+  const [formData, setFormData] = useState<VagaFormData>(
+    getInitialFormData(selectedCondominioId)
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (isOpen) {
-      if (vaga) {
-        // Editando vaga existente
-        setFormData({
-          numero: vaga.numero,
-          tipo: vaga.tipo,
-          unidadeId: vaga.unidadeId || '', // Será validado como obrigatório
-          condominioId: vaga.condominioId || '',
-          proprietarioId: vaga.proprietarioId
-        });
-      } else {
-        // Nova vaga
-        setFormData({
-          numero: '',
-          tipo: 'DESCOBERTA',
-          unidadeId: '', // Será obrigatório na validação
-          condominioId: selectedCondominioId || ''
-        });
-      }
-      setErrors({});
+    if (!isOpen) {
+      return;
     }
+
+    if (vaga) {
+      setFormData({
+        numero: vaga.numero,
+        tipo: vaga.tipo,
+        unidadeId: vaga.unidadeId || '',
+        condominioId: vaga.condominioId || selectedCondominioId || '',
+        proprietarioId: vaga.proprietarioId ?? undefined,
+      });
+    } else {
+      setFormData(getInitialFormData(selectedCondominioId));
+    }
+
+    setErrors({});
   }, [isOpen, vaga, selectedCondominioId]);
 
-  // Função removida - agora usamos o UnidadeSelector
+  const handleInputChange = (field: keyof VagaFormData, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+      ...(field === 'condominioId' ? { unidadeId: '' } : {}),
+    }));
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.numero.trim()) {
-      newErrors.numero = 'Número da vaga é obrigatório';
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: '' }));
     }
+  };
+
+  const validateForm = () => {
+    const nextErrors: Record<string, string> = {};
 
     if (!formData.condominioId) {
-      newErrors.condominioId = 'Condomínio é obrigatório';
+      nextErrors.condominioId = 'Condominio e obrigatorio';
+    }
+
+    if (!formData.numero.trim()) {
+      nextErrors.numero = 'Numero da vaga e obrigatorio';
     }
 
     if (!formData.unidadeId) {
-      newErrors.unidadeId = 'Unidade é obrigatória';
+      nextErrors.unidadeId = 'Unidade e obrigatoria';
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (!validateForm()) {
       return;
     }
 
     setIsSaving(true);
+
     try {
       await onSave(formData);
       onClose();
@@ -124,14 +127,7 @@ export default function VagaModal({
     }
   };
 
-  const handleInputChange = (field: keyof VagaFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
-  const getTipoColor = (tipo: string) => {
+  const getTipoColor = (tipo: VagaFormData['tipo']) => {
     switch (tipo) {
       case 'COBERTA':
         return 'bg-blue-100 text-blue-800';
@@ -148,57 +144,47 @@ export default function VagaModal({
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'LIVRE':
-        return 'bg-green-100 text-green-800';
-      case 'OCUPADA':
-        return 'bg-red-100 text-red-800';
-      case 'RESERVADA':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'MANUTENCAO':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="mx-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b p-6">
           <div className="flex items-center">
-            <Car className="h-6 w-6 text-blue-600 mr-3" />
+            <Car className="mr-3 h-6 w-6 text-blue-600" />
             <h2 className="text-xl font-semibold text-gray-900">
               {vaga ? 'Editar Vaga' : 'Nova Vaga'}
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 transition-colors hover:text-gray-600"
           >
             <X className="h-6 w-6" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Condomínio */}
+        <form onSubmit={handleSubmit} className="space-y-4 p-6">
           <div>
-            <label htmlFor="condominioId" className="block text-sm font-medium text-gray-700 mb-1">
-              Condomínio *
+            <label
+              htmlFor="condominioId"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Condominio *
             </label>
             <select
               id="condominioId"
               value={formData.condominioId}
-              onChange={(e) => handleInputChange('condominioId', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              onChange={(event) => handleInputChange('condominioId', event.target.value)}
+              disabled={!!selectedCondominioId}
+              className={`w-full rounded-md border px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.condominioId ? 'border-red-300' : 'border-gray-300'
               }`}
-              disabled={!!selectedCondominioId}
             >
-              <option value="">Selecione um condomínio</option>
+              <option value="">Selecione um condominio</option>
               {condominios.map((condominio) => (
                 <option key={condominio.id} value={condominio.id}>
                   {condominio.nome}
@@ -210,36 +196,34 @@ export default function VagaModal({
             )}
           </div>
 
-          {/* Número */}
           <div>
-            <label htmlFor="numero" className="block text-sm font-medium text-gray-700 mb-1">
-              Número da Vaga *
+            <label htmlFor="numero" className="mb-1 block text-sm font-medium text-gray-700">
+              Numero da Vaga *
             </label>
             <input
-              type="text"
               id="numero"
+              type="text"
               value={formData.numero}
-              onChange={(e) => handleInputChange('numero', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              onChange={(event) => handleInputChange('numero', event.target.value)}
+              placeholder="Ex: 001, A-15, B-23"
+              className={`w-full rounded-md border px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.numero ? 'border-red-300' : 'border-gray-300'
               }`}
-              placeholder="Ex: 001, A-15, B-23"
             />
-            {errors.numero && (
-              <p className="mt-1 text-sm text-red-600">{errors.numero}</p>
-            )}
+            {errors.numero && <p className="mt-1 text-sm text-red-600">{errors.numero}</p>}
           </div>
 
-          {/* Tipo */}
           <div>
-            <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="tipo" className="mb-1 block text-sm font-medium text-gray-700">
               Tipo da Vaga
             </label>
             <select
               id="tipo"
               value={formData.tipo}
-              onChange={(e) => handleInputChange('tipo', e.target.value as VagaFormData['tipo'])}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(event) =>
+                handleInputChange('tipo', event.target.value as VagaFormData['tipo'])
+              }
+              className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="DESCOBERTA">Descoberta</option>
               <option value="COBERTA">Coberta</option>
@@ -248,17 +232,18 @@ export default function VagaModal({
               <option value="VISITANTE">Visitante</option>
             </select>
             <div className="mt-1">
-              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTipoColor(formData.tipo)}`}>
+              <span
+                className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getTipoColor(
+                  formData.tipo
+                )}`}
+              >
                 {formData.tipo}
               </span>
             </div>
           </div>
 
-
-
-          {/* Unidade */}
           <div>
-            <label htmlFor="unidadeId" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="unidadeId" className="mb-1 block text-sm font-medium text-gray-700">
               Unidade *
             </label>
             <UnidadeSelector
@@ -267,26 +252,23 @@ export default function VagaModal({
               onChange={(unidadeId) => handleInputChange('unidadeId', unidadeId)}
               placeholder="Selecione a unidade para esta vaga"
               disabled={!formData.condominioId}
-              required={true}
+              required
               error={errors.unidadeId}
             />
           </div>
 
-
-
-          {/* Botões */}
           <div className="flex justify-end space-x-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving ? 'Salvando...' : vaga ? 'Atualizar' : 'Criar'}
             </button>
