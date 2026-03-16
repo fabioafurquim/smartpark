@@ -345,6 +345,55 @@ export async function DELETE(
       );
     }
 
+    const [locacoesAtivas, reservasAtivas, totalLocacoes, totalReservas, solicitacoesCadastro] =
+      await Promise.all([
+        prisma.locacao.count({
+          where: {
+            vagaId,
+            status: {
+              in: ['PENDENTE', 'ATIVA']
+            }
+          }
+        }),
+        prisma.reserva.count({
+          where: {
+            vagaId,
+            status: {
+              in: ['ativa', 'confirmada', 'ATIVA', 'CONFIRMADA']
+            }
+          }
+        }),
+        prisma.locacao.count({
+          where: {
+            vagaId
+          }
+        }),
+        prisma.reserva.count({
+          where: {
+            vagaId
+          }
+        }),
+        prisma.solicitacaoCadastro.count({
+          where: {
+            vagaId
+          }
+        })
+      ]);
+
+    if (locacoesAtivas > 0 || reservasAtivas > 0) {
+      return NextResponse.json(
+        { error: 'Não é possível excluir esta vaga pois há locações ou reservas em andamento' },
+        { status: 409 }
+      );
+    }
+
+    if (totalLocacoes > 0 || totalReservas > 0 || solicitacoesCadastro > 0) {
+      return NextResponse.json(
+        { error: 'Não é possível excluir esta vaga pois ela possui histórico ou solicitações vinculadas' },
+        { status: 409 }
+      );
+    }
+
     // Remover a vaga
     await prisma.vaga.delete({
       where: {

@@ -148,6 +148,16 @@ export function ehAdministradorCondominio(
   return temPerfil(usuario, 'administrador_condominio', condominioId);
 }
 
+export function ehAdministradorLocal(
+  usuario: UsuarioSessao,
+  condominioId?: string
+): boolean {
+  return usuario.perfis.some((perfil) => {
+    const condominioCorreto = !condominioId || perfil.condominioId === condominioId;
+    return condominioCorreto && ['administrador_condominio', 'sindico'].includes(perfil.tipo);
+  });
+}
+
 /**
  * Função para verificar se o usuário é síndico
  * @param usuario - Dados do usuário da sessão
@@ -229,15 +239,19 @@ export function temPermissao(
           'aprovarSolicitacoes',
           'visualizarRelatorios',
           'configurarSistema',
+          'gerenciarReservas',
           'monitorarLocacoes',
         ].includes(permissao);
       
       case 'sindico':
         return [
+          'gerenciarUsuarios',
+          'gerenciarEstrutura',
           'aprovarSolicitacoes',
           'visualizarRelatorios',
           'gerenciarReservas',
           'monitorarLocacoes',
+          'configurarSistema',
         ].includes(permissao);
 
       case 'porteiro':

@@ -33,6 +33,44 @@ const unidadeTemMovimentacoesAtivas = async (unidadeId: string) => {
   return locacoesAtivas > 0 || reservasAtivas > 0;
 };
 
+const obterResumoExclusaoUnidade = async (unidadeId: string) => {
+  const [totalVagas, locacoesHistoricas, reservasHistoricas, solicitacoesCadastro, unidade] =
+    await Promise.all([
+      prisma.vaga.count({
+        where: { unidadeId },
+      }),
+      prisma.locacao.count({
+        where: {
+          vaga: { unidadeId },
+        },
+      }),
+      prisma.reserva.count({
+        where: {
+          vaga: { unidadeId },
+        },
+      }),
+      prisma.solicitacaoCadastro.count({
+        where: {
+          unidadeId,
+        },
+      }),
+      prisma.unidade.findUnique({
+        where: { id: unidadeId },
+        select: {
+          usuarioId: true,
+        },
+      }),
+    ]);
+
+  return {
+    totalVagas,
+    locacoesHistoricas,
+    reservasHistoricas,
+    solicitacoesCadastro,
+    possuiMoradorAssociado: !!unidade?.usuarioId,
+  };
+};
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -295,6 +333,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
     }
 
+    const usuario = session.user as UsuarioSessao;
     const { id } = await params;
     const unidade = await prisma.unidade.findUnique({
       where: { id },
@@ -311,11 +350,35 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unidade nao encontrada' }, { status: 404 });
     }
 
-    if (unidade._count.vagas > 0) {
+    if (!temPermissao(usuario, 'gerenciarEstrutura', unidade.condominioId)) {
+      return NextResponse.json(
+        { error: 'Acesso negado ao condominio especificado' },
+        { status: 403 }
+      );
+    }
+
+    const resumoExclusao = await obterResumoExclusaoUnidade(id);
+
+    if (resumoExclusao.totalVagas > 0) {
       return NextResponse.json(
         {
-          error: 'Nao e possivel excluir unidade que possui vagas vinculadas',
-          details: `Esta unidade possui ${unidade._count.vagas} vaga(s) vinculada(s)`,
+          error: 'Nao e possivel excluir esta unidade',
+          details: `Esta unidade possui ${resumoExclusao.totalVagas} vaga(s) vinculada(s)`,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      resumoExclusao.locacoesHistoricas > 0 ||
+      resumoExclusao.reservasHistoricas > 0 ||
+      resumoExclusao.solicitacoesCadastro > 0 ||
+      resumoExclusao.possuiMoradorAssociado
+    ) {
+      return NextResponse.json(
+        {
+          error: 'Nao e possivel excluir esta unidade',
+          details: `Foram encontrados ${resumoExclusao.locacoesHistoricas} locacao(oes), ${resumoExclusao.reservasHistoricas} reserva(s), ${resumoExclusao.solicitacoesCadastro} solicitacao(oes) e ${resumoExclusao.possuiMoradorAssociado ? 'um morador associado' : 'nenhum morador associado'}.`,
         },
         { status: 400 }
       );

@@ -222,8 +222,9 @@ const validarPermissaoEstrutura = (usuario: UsuarioSessao, condominioId: string)
   return null;
 };
 
-const verificarMovimentacaoAtiva = async (vagaId: string) => {
-  const [locacoesAtivas, reservasAtivas] = await Promise.all([
+const obterResumoMovimentacoesVaga = async (vagaId: string) => {
+  const [locacoesAtivas, reservasAtivas, totalLocacoes, totalReservas, solicitacoesCadastro] =
+    await Promise.all([
     prisma.locacao.count({
       where: {
         vagaId,
@@ -240,9 +241,32 @@ const verificarMovimentacaoAtiva = async (vagaId: string) => {
         },
       },
     }),
+    prisma.locacao.count({
+      where: {
+        vagaId,
+      },
+    }),
+    prisma.reserva.count({
+      where: {
+        vagaId,
+      },
+    }),
+    prisma.solicitacaoCadastro.count({
+      where: {
+        vagaId,
+      },
+    }),
   ]);
 
-  return locacoesAtivas > 0 || reservasAtivas > 0;
+  return {
+    locacoesAtivas,
+    reservasAtivas,
+    totalLocacoes,
+    totalReservas,
+    solicitacoesCadastro,
+    possuiMovimentacaoAtiva: locacoesAtivas > 0 || reservasAtivas > 0,
+    possuiHistorico: totalLocacoes > 0 || totalReservas > 0,
+  };
 };
 
 export async function GET(
@@ -356,8 +380,8 @@ export async function PUT(
         );
       }
 
-      const possuiMovimentacaoAtiva = await verificarMovimentacaoAtiva(id);
-      if (possuiMovimentacaoAtiva) {
+      const resumoMovimentacoes = await obterResumoMovimentacoesVaga(id);
+      if (resumoMovimentacoes.possuiMovimentacaoAtiva) {
         return NextResponse.json(
           {
             error:
@@ -473,11 +497,24 @@ export async function DELETE(
       return respostaPermissao;
     }
 
-    const possuiMovimentacaoAtiva = await verificarMovimentacaoAtiva(id);
-    if (possuiMovimentacaoAtiva) {
+    const resumoMovimentacoes = await obterResumoMovimentacoesVaga(id);
+
+    if (resumoMovimentacoes.possuiMovimentacaoAtiva) {
       return NextResponse.json(
         {
-          error: 'Nao e possivel excluir uma vaga com locacoes ou reservas ativas',
+          error: 'Nao e possivel excluir esta vaga',
+          details:
+            'Esta vaga possui locacoes ou reservas em andamento. Finalize ou cancele a movimentacao antes de tentar excluir.',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (resumoMovimentacoes.possuiHistorico || resumoMovimentacoes.solicitacoesCadastro > 0) {
+      return NextResponse.json(
+        {
+          error: 'Nao e possivel excluir esta vaga',
+          details: `Historico encontrado: ${resumoMovimentacoes.totalLocacoes} locacao(oes), ${resumoMovimentacoes.totalReservas} reserva(s) e ${resumoMovimentacoes.solicitacoesCadastro} solicitacao(oes).`,
         },
         { status: 400 }
       );

@@ -30,6 +30,7 @@ interface Unidade {
     id: string;
     nome: string;
   };
+  totalVagas?: number;
 }
 
 interface Condominio {
@@ -53,6 +54,15 @@ interface UnidadeFormData {
   torreId: string;
   condominioId: string;
 }
+
+const extrairMensagemErro = (errorData: unknown, fallback: string) => {
+  if (!errorData || typeof errorData !== 'object') {
+    return fallback;
+  }
+
+  const payload = errorData as { error?: string; details?: string };
+  return payload.details || payload.error || fallback;
+};
 
 export default function UnidadesPage() {
   const [unidades, setUnidades] = useState<Unidade[]>([]);
@@ -171,7 +181,20 @@ export default function UnidadesPage() {
   };
 
   const handleDeleteUnidade = async (unidade: Unidade) => {
-    if (!confirm(`Tem certeza que deseja excluir a unidade "${unidade.numero}"?`)) {
+    if (unidade.usuario || (unidade.totalVagas || 0) > 0) {
+      setError(
+        (unidade.totalVagas || 0) > 0
+          ? `A unidade "${unidade.numero}" não pode ser excluída porque ainda possui ${unidade.totalVagas} vaga(s) vinculada(s).`
+          : `A unidade "${unidade.numero}" não pode ser excluída porque ainda possui um morador associado.`
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `Excluir a unidade "${unidade.numero}"? Esta ação é permanente e pode ser bloqueada caso exista histórico vinculado.`
+      )
+    ) {
       return;
     }
 
@@ -185,7 +208,7 @@ export default function UnidadesPage() {
         setError('');
       } else {
         const errorData = await response.json();
-        const mensagem = errorData.details || errorData.error || 'Erro ao excluir unidade';
+        const mensagem = extrairMensagemErro(errorData, 'Erro ao excluir unidade');
         setError(mensagem);
       }
     } catch (error) {
@@ -267,6 +290,10 @@ export default function UnidadesPage() {
           {error}
         </div>
       )}
+
+      <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded mb-4 text-sm">
+        Unidades com morador associado, vagas vinculadas ou histórico operacional não podem ser excluídas.
+      </div>
 
       {/* Filtros */}
       <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
@@ -468,8 +495,15 @@ export default function UnidadesPage() {
                         </button>
                         <button
                           onClick={() => handleDeleteUnidade(unidade)}
-                          className="text-red-600 hover:text-red-900 p-1 rounded"
-                          title="Excluir"
+                          className="text-red-600 hover:text-red-900 p-1 rounded disabled:text-gray-300 disabled:hover:text-gray-300 disabled:cursor-not-allowed"
+                          title={
+                            (unidade.totalVagas || 0) > 0
+                              ? 'Remova primeiro as vagas vinculadas'
+                              : unidade.usuario
+                                ? 'Remova primeiro o morador associado'
+                                : 'Excluir'
+                          }
+                          disabled={Boolean(unidade.usuario) || (unidade.totalVagas || 0) > 0}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

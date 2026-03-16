@@ -514,8 +514,8 @@ export default function DashboardPage() {
                 </Link>
                 <Link href="/reservas-sindico" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Calendar className="w-8 h-8 text-purple-600 mb-2" />
-                  <h4 className="font-medium text-gray-900">Monitoramento de Veiculos</h4>
-                  <p className="text-sm text-gray-600">Acompanhar locacoes e placas</p>
+                  <h4 className="font-medium text-gray-900">Monitoramento de Locações</h4>
+                  <p className="text-sm text-gray-600">Acompanhar locações, placas e ocorrências</p>
                 </Link>
               </>
             )}
@@ -523,8 +523,8 @@ export default function DashboardPage() {
               <>
                 <Link href="/reservas-sindico" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Calendar className="w-8 h-8 text-blue-600 mb-2" />
-                  <h4 className="font-medium text-gray-900">Monitoramento de Veiculos</h4>
-                  <p className="text-sm text-gray-600">Consultar locacoes ativas e placas</p>
+                  <h4 className="font-medium text-gray-900">Monitoramento de Veículos</h4>
+                  <p className="text-sm text-gray-600">Consultar locações ativas, placas e acessos</p>
                 </Link>
               </>
             )}

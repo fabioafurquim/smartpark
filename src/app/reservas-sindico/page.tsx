@@ -152,6 +152,13 @@ export default function ReservasSindicoPage() {
     () => usuario?.perfis.some((perfil) => perfil.tipo === 'porteiro') ?? false,
     [usuario]
   );
+  const perfilGestorLocal = useMemo(
+    () =>
+      usuario?.perfis.some((perfil) =>
+        ['sindico', 'administrador_condominio'].includes(perfil.tipo)
+      ) ?? false,
+    [usuario]
+  );
 
   useEffect(() => {
     const perfisOperacionais = (usuario?.perfis || []).filter((perfil) =>
@@ -316,15 +323,20 @@ export default function ReservasSindicoPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="mb-3 inline-flex items-center rounded-full bg-white/85 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-100">
-                {perfilPorteiro ? 'Uso diário da portaria' : 'Uso diário do condomínio'}
+                {perfilPorteiro && !perfilGestorLocal
+                  ? 'Uso diário da portaria'
+                  : 'Gestão diária do condomínio'}
               </div>
               <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl">
                 <Car className="h-7 w-7 text-amber-600" />
-                Monitoramento de veículos
+                {perfilPorteiro && !perfilGestorLocal
+                  ? 'Monitoramento de veículos'
+                  : 'Monitoramento de locações'}
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
-                Consulte rapidamente placa, modelo, vaga, morador, período e os últimos eventos de
-                cada locação.
+                {perfilPorteiro && !perfilGestorLocal
+                  ? 'Consulte rapidamente placa, modelo, vaga, morador, período e os últimos eventos de cada locação.'
+                  : 'Acompanhe as locações do condomínio com foco em status, veículos, valores e eventos operacionais.'}
               </p>
             </div>
 

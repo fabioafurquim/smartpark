@@ -354,6 +354,33 @@ export async function DELETE(
       );
     }
 
+    const [locacoesHistoricas, reservasHistoricas, solicitacoesCadastro] = await Promise.all([
+      prisma.locacao.count({
+        where: {
+          vaga: { unidadeId }
+        }
+      }),
+      prisma.reserva.count({
+        where: {
+          vaga: { unidadeId }
+        }
+      }),
+      prisma.solicitacaoCadastro.count({
+        where: {
+          unidadeId
+        }
+      })
+    ]);
+
+    if (unidade.usuarioId || locacoesHistoricas > 0 || reservasHistoricas > 0 || solicitacoesCadastro > 0) {
+      return NextResponse.json(
+        {
+          error: 'Não é possível excluir esta unidade pois ela possui histórico ou vínculos associados'
+        },
+        { status: 409 }
+      );
+    }
+
     // Remover a unidade
     await prisma.unidade.delete({
       where: {

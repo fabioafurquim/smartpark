@@ -29,6 +29,15 @@ interface TorreFormData {
   condominioId: string;
 }
 
+const extrairMensagemErro = (errorData: unknown, fallback: string) => {
+  if (!errorData || typeof errorData !== 'object') {
+    return fallback;
+  }
+
+  const payload = errorData as { error?: string; details?: string };
+  return payload.details || payload.error || fallback;
+};
+
 export default function TorresPage() {
   const [torres, setTorres] = useState<Torre[]>([]);
   const [condominios, setCondominios] = useState<Condominio[]>([]);
@@ -135,7 +144,18 @@ export default function TorresPage() {
   };
 
   const handleDeleteTorre = async (torre: Torre) => {
-    if (!confirm(`Tem certeza que deseja excluir a ${torre.tipo.toLowerCase()} "${torre.nome}"?`)) {
+    if (torre.totalUnidades > 0) {
+      setError(
+        `A ${torre.tipo.toLowerCase()} "${torre.nome}" não pode ser excluída porque ainda possui ${torre.totalUnidades} unidade(s).`
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `Excluir a ${torre.tipo.toLowerCase()} "${torre.nome}"? Esta ação é permanente e só deve ser feita quando a estrutura estiver vazia.`
+      )
+    ) {
       return;
     }
 
@@ -149,7 +169,7 @@ export default function TorresPage() {
         setError('');
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Erro ao excluir torre');
+        setError(extrairMensagemErro(errorData, 'Erro ao excluir torre'));
       }
     } catch (error) {
       console.error('Erro ao excluir torre:', error);
@@ -190,6 +210,10 @@ export default function TorresPage() {
             {error}
           </div>
         )}
+
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded mb-4 text-sm">
+          A exclusão só é permitida quando a torre ou bloco não possui mais unidades vinculadas.
+        </div>
 
       {/* Filtros */}
       <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
@@ -336,8 +360,13 @@ export default function TorresPage() {
                         </button>
                         <button
                           onClick={() => handleDeleteTorre(torre)}
-                          className="text-red-600 hover:text-red-900 p-1 rounded"
-                          title="Excluir"
+                          className="text-red-600 hover:text-red-900 p-1 rounded disabled:text-gray-300 disabled:hover:text-gray-300 disabled:cursor-not-allowed"
+                          title={
+                            torre.totalUnidades > 0
+                              ? 'Remova primeiro as unidades vinculadas'
+                              : 'Excluir'
+                          }
+                          disabled={torre.totalUnidades > 0}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

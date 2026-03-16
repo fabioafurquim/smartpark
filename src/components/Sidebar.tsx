@@ -19,7 +19,12 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ehAdministradorMestre, temPermissao } from '@/lib/auth';
+import {
+  ehAdministradorLocal,
+  ehAdministradorMestre,
+  ehPorteiro,
+  temPermissao,
+} from '@/lib/auth';
 import { UsuarioSessao } from '@/types';
 
 interface SidebarProps {
@@ -57,6 +62,24 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
     return usuario.perfis.some((perfil) =>
       ['administrador_condominio', 'sindico', 'porteiro'].includes(perfil.tipo)
     );
+  };
+
+  const obterRotuloMonitoramento = () => {
+    if (!usuario) {
+      return 'Monitoramento';
+    }
+
+    const condominioIds = Array.from(new Set(usuario.perfis.map((perfil) => perfil.condominioId)));
+
+    if (condominioIds.some((condominioId) => ehAdministradorLocal(usuario, condominioId))) {
+      return 'Monitoramento de Locações';
+    }
+
+    if (condominioIds.some((condominioId) => ehPorteiro(usuario, condominioId))) {
+      return 'Monitoramento de Veículos';
+    }
+
+    return 'Monitoramento';
   };
 
   const itensMenu: ItemMenu[] = [
@@ -161,7 +184,7 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
     },
     {
       id: 'locacoes-condominio',
-      rotulo: 'Monitoramento de Veículos',
+      rotulo: obterRotuloMonitoramento(),
       icone: Calendar,
       permissaoNecessaria: 'monitorarLocacoes',
       href: '/reservas-sindico',

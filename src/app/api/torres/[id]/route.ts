@@ -236,7 +236,7 @@ export async function DELETE(
     if (torre._count.unidades > 0) {
       return NextResponse.json(
         {
-          error: 'Não é possível excluir torre/bloco que possui unidades vinculadas',
+          error: 'Não é possível excluir esta estrutura',
           details: `Esta torre/bloco possui ${torre._count.unidades} unidade(s) vinculada(s)`
         },
         { status: 400 }

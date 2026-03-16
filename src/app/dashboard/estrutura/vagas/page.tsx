@@ -26,6 +26,9 @@ interface Vaga {
     id: string;
     nome: string;
   };
+  configuracaoLocacao?: {
+    disponivel: boolean;
+  } | null;
   criadoEm: string;
 }
 
@@ -41,6 +44,15 @@ interface Condominio {
   id: string;
   nome: string;
 }
+
+const extrairMensagemErro = (errorData: unknown, fallback: string) => {
+  if (!errorData || typeof errorData !== 'object') {
+    return fallback;
+  }
+
+  const payload = errorData as { error?: string; details?: string };
+  return payload.details || payload.error || fallback;
+};
 
 export default function VagasPage() {
   const [vagas, setVagas] = useState<Vaga[]>([]);
@@ -149,19 +161,23 @@ export default function VagasPage() {
     }
   };
 
-  const handleExcluirVaga = async (vagaId: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta vaga?')) {
+  const handleExcluirVaga = async (vaga: Vaga) => {
+    if (
+      !confirm(
+        `Excluir a vaga ${vaga.numero}? Esta ação é permanente e será bloqueada se existir histórico de locação, reserva ou solicitação.`
+      )
+    ) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/vagas/${vagaId}`, {
+      const response = await fetch(`/api/vagas/${vaga.id}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) {
         const erro = await response.json().catch(() => null);
-        throw new Error(erro?.error || 'Erro ao excluir vaga');
+        throw new Error(extrairMensagemErro(erro, 'Erro ao excluir vaga'));
       }
 
       await carregarVagas();
@@ -244,6 +260,10 @@ export default function VagasPage() {
             <Plus className="h-4 w-4" />
             Nova Vaga
           </Button>
+        </div>
+
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Vagas com locações, reservas ou solicitações vinculadas não podem ser excluídas para preservar a integridade do histórico.
         </div>
 
         <div className="rounded-lg bg-white p-6 shadow">
@@ -433,7 +453,8 @@ export default function VagasPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleExcluirVaga(vaga.id)}
+                        onClick={() => handleExcluirVaga(vaga)}
+                        title="Excluir vaga"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
