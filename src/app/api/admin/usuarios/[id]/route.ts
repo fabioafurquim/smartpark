@@ -172,6 +172,7 @@ export async function PUT(
               'administrador_mestre',
               'administrador_condominio',
               'sindico',
+              'porteiro',
               'morador',
             ]),
             ativo: z.boolean().optional(),

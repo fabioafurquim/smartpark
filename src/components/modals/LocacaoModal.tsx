@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, Calendar, DollarSign, Clock, CarFront } from 'lucide-react';
+import { Calendar, CarFront, Clock, DollarSign, X } from 'lucide-react';
 import { calcularValorLocacao } from '@/lib/locacao-utils';
 
 interface Vaga {
@@ -92,21 +92,21 @@ export default function LocacaoModal({
     setErro('');
   };
 
-  const validarFormulario = (): boolean => {
+  const validarFormulario = () => {
     if (!formData.dataInicio) {
-      setErro('Data de inicio e obrigatoria');
+      setErro('Data de início é obrigatória.');
       return false;
     }
     if (!formData.dataFim) {
-      setErro('Data de fim e obrigatoria');
+      setErro('Data de fim é obrigatória.');
       return false;
     }
     if (!formData.placaVeiculo) {
-      setErro('Informe a placa do veiculo');
+      setErro('Informe a placa do veículo.');
       return false;
     }
     if (!formData.modeloVeiculo) {
-      setErro('Informe o modelo do veiculo');
+      setErro('Informe o modelo do veículo.');
       return false;
     }
 
@@ -114,12 +114,12 @@ export default function LocacaoModal({
     const dataFim = new Date(formData.dataFim);
 
     if (dataInicio >= dataFim) {
-      setErro('Data de inicio deve ser anterior a data de fim');
+      setErro('A data de início precisa ser anterior à data de fim.');
       return false;
     }
 
     if (valorCalculado == null) {
-      setErro('Nao foi possivel calcular o valor para este periodo');
+      setErro('Não foi possível calcular o valor para esse período.');
       return false;
     }
 
@@ -151,15 +151,15 @@ export default function LocacaoModal({
       });
 
       if (response.ok) {
-        alert('Solicitacao enviada com sucesso. Agora ela aguarda a aprovacao do proprietario.');
+        alert('Solicitação enviada com sucesso. Agora ela aguarda a aprovação do proprietário.');
         onSuccess();
       } else {
         const data = await response.json();
-        setErro(data.details || data.error || 'Erro ao criar locacao');
+        setErro(data.details || data.error || 'Erro ao criar locação');
       }
     } catch (error) {
-      console.error('Erro ao criar locacao:', error);
-      setErro('Erro ao criar locacao');
+      console.error('Erro ao criar locação:', error);
+      setErro('Erro ao criar locação');
     } finally {
       setCarregando(false);
     }
@@ -168,152 +168,169 @@ export default function LocacaoModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white shadow-xl">
-        <div className="sticky top-0 flex items-center justify-between border-b bg-white px-5 py-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Solicitar locacao</h2>
-            <p className="text-sm text-gray-500">Valor calculado automaticamente pelo sistema</p>
-          </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="space-y-4 p-5">
-          <div className="rounded-2xl bg-blue-50 p-4">
-            <p className="text-sm text-gray-600">Vaga selecionada</p>
-            <p className="mt-1 text-lg font-bold text-gray-900">Vaga {vaga.numero}</p>
-            <p className="text-sm text-gray-600">
-              {vaga.unidade.torre.nome} - Unidade {vaga.unidade.numero}
-            </p>
-            <p className="mt-2 text-xs text-gray-500">{vaga.condominio.nome}</p>
-            <p className="mt-3 text-sm text-gray-600">
-              Morador responsavel:{' '}
-              <span className="font-medium text-gray-900">{vaga.proprietario.nome}</span>
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                <Clock className="mr-1 inline h-4 w-4" />
-                Tipo de locacao
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {vaga.configuracaoLocacao.tiposPermitidos.map((tipo) => (
-                  <button
-                    key={tipo}
-                    type="button"
-                    onClick={() => handleInputChange('tipoLocacao', tipo)}
-                    className={`rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
-                      formData.tipoLocacao === tipo
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {tipo === 'HORA' && 'Por hora'}
-                    {tipo === 'DIARIA' && 'Por dia'}
-                    {tipo === 'MENSAL' && 'Por mes'}
-                    {tipo === 'ANUAL' && 'Por ano'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]">
+      <div className="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+        <div className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-t-[32px] bg-white shadow-2xl sm:rounded-[32px]">
+          <div className="sticky top-0 z-10 border-b border-slate-100 bg-white px-5 py-4">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 sm:hidden" />
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  <Calendar className="mr-1 inline h-4 w-4" />
-                  Inicio
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.dataInicio}
-                  onChange={(e) => handleInputChange('dataInicio', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
+                <h2 className="text-xl font-bold text-slate-900">Solicitar locação</h2>
+                <p className="text-sm text-slate-500">
+                  Valor calculado automaticamente pelo sistema
+                </p>
               </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  <Calendar className="mr-1 inline h-4 w-4" />
-                  Fim
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.dataFim}
-                  onChange={(e) => handleInputChange('dataFim', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  <CarFront className="mr-1 inline h-4 w-4" />
-                  Placa do veiculo
-                </label>
-                <input
-                  type="text"
-                  value={formData.placaVeiculo}
-                  onChange={(e) => handleInputChange('placaVeiculo', e.target.value.toUpperCase())}
-                  placeholder="ABC1D23"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm uppercase focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Modelo do veiculo
-                </label>
-                <input
-                  type="text"
-                  value={formData.modeloVeiculo}
-                  onChange={(e) => handleInputChange('modeloVeiculo', e.target.value)}
-                  placeholder="Ex.: Civic prata"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
-              <div className="flex items-center gap-2 text-sm text-blue-900">
-                <DollarSign className="h-4 w-4" />
-                Valor estimado da solicitacao
-              </div>
-              <p className="mt-2 text-2xl font-bold text-blue-950">
-                {valorCalculado != null ? `R$ ${valorCalculado.toFixed(2)}` : 'Preencha o periodo'}
-              </p>
-              <p className="mt-1 text-xs text-blue-700">
-                O valor final considera a modalidade publicada pelo proprietario.
-              </p>
-            </div>
-
-            {erro && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {erro}
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-2">
               <button
-                type="button"
                 onClick={onClose}
-                className="flex-1 rounded-xl border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50"
+                className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
               >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={carregando}
-                className="flex-1 rounded-xl bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {carregando ? 'Enviando...' : 'Solicitar locacao'}
+                <X className="h-5 w-5" />
               </button>
             </div>
-          </form>
+          </div>
+
+          <div className="overflow-y-auto px-5 py-5">
+            <div className="space-y-4">
+              <div className="rounded-[28px] bg-blue-50 p-4">
+                <p className="text-sm text-slate-600">Vaga selecionada</p>
+                <p className="mt-1 text-xl font-bold text-slate-900">Vaga {vaga.numero}</p>
+                <p className="text-sm text-slate-600">
+                  {vaga.unidade.torre.nome} • Unidade {vaga.unidade.numero}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">{vaga.condominio.nome}</p>
+                <p className="mt-3 text-sm text-slate-600">
+                  Morador responsável:{' '}
+                  <span className="font-medium text-slate-900">{vaga.proprietario.nome}</span>
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                O pagamento pelo app ainda não está ativo neste piloto. Por enquanto, o SmartPark
+                registra pedido, aprovação e ocupação da vaga.
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    <Clock className="mr-1 inline h-4 w-4" />
+                    Modalidade
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {vaga.configuracaoLocacao.tiposPermitidos.map((tipo) => (
+                      <button
+                        key={tipo}
+                        type="button"
+                        onClick={() => handleInputChange('tipoLocacao', tipo)}
+                        className={`rounded-2xl px-3 py-3 text-sm font-medium transition-colors ${
+                          formData.tipoLocacao === tipo
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {tipo === 'HORA' && 'Por hora'}
+                        {tipo === 'DIARIA' && 'Diária'}
+                        {tipo === 'MENSAL' && 'Mensal'}
+                        {tipo === 'ANUAL' && 'Anual'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      <Calendar className="mr-1 inline h-4 w-4" />
+                      Início
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.dataInicio}
+                      onChange={(e) => handleInputChange('dataInicio', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      <Calendar className="mr-1 inline h-4 w-4" />
+                      Fim
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.dataFim}
+                      onChange={(e) => handleInputChange('dataFim', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      <CarFront className="mr-1 inline h-4 w-4" />
+                      Placa do veículo
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.placaVeiculo}
+                      onChange={(e) => handleInputChange('placaVeiculo', e.target.value.toUpperCase())}
+                      placeholder="ABC1D23"
+                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm uppercase focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Modelo do veículo
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.modeloVeiculo}
+                      onChange={(e) => handleInputChange('modeloVeiculo', e.target.value)}
+                      placeholder="Ex.: Palio prata"
+                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-blue-100 bg-blue-50 p-4">
+                  <div className="flex items-center gap-2 text-sm text-blue-900">
+                    <DollarSign className="h-4 w-4" />
+                    Valor estimado da solicitação
+                  </div>
+                  <p className="mt-2 text-3xl font-bold text-blue-950">
+                    {valorCalculado != null ? `R$ ${valorCalculado.toFixed(2)}` : 'Preencha o período'}
+                  </p>
+                  <p className="mt-1 text-xs text-blue-700">
+                    O valor final segue a modalidade e os valores publicados pelo proprietário.
+                  </p>
+                </div>
+
+                {erro && (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {erro}
+                  </div>
+                )}
+
+                <div className="sticky bottom-0 grid gap-2 border-t border-slate-100 bg-white pb-1 pt-4 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="h-12 rounded-2xl border border-slate-300 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={carregando}
+                    className="h-12 rounded-2xl bg-blue-600 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {carregando ? 'Enviando...' : 'Solicitar locação'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </div>

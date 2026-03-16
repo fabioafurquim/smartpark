@@ -8,10 +8,7 @@ export async function GET() {
     const session = await getServerSession(authOptions);
 
     if (!session?.user || !(session.user as { id?: string }).id) {
-      return NextResponse.json(
-        { error: 'Nao autorizado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
     const usuarioId = (session.user as { id: string }).id;
@@ -58,10 +55,7 @@ export async function GET() {
     });
 
     if (!usuario) {
-      return NextResponse.json(
-        { error: 'Usuario nao encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
     return NextResponse.json({
@@ -70,9 +64,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Erro ao consultar status do cadastro:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

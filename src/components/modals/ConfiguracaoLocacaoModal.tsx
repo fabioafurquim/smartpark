@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Save } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Save, X } from 'lucide-react';
 
 interface Vaga {
   id: string;
@@ -72,7 +72,7 @@ export default function ConfiguracaoLocacaoModal({
     setFormData((prev) => ({
       ...prev,
       tiposPermitidos: prev.tiposPermitidos.includes(tipo)
-        ? prev.tiposPermitidos.filter((t) => t !== tipo)
+        ? prev.tiposPermitidos.filter((item) => item !== tipo)
         : [...prev.tiposPermitidos, tipo],
     }));
   };
@@ -82,27 +82,25 @@ export default function ConfiguracaoLocacaoModal({
       setErro(null);
       setSalvando(true);
 
-      // Validar se há tipos de locação selecionados
       if (formData.disponivel && formData.tiposPermitidos.length === 0) {
-        setErro('Selecione pelo menos um tipo de locação');
+        setErro('Selecione pelo menos uma modalidade.');
         return;
       }
 
-      // Validar valores
       if (formData.tiposPermitidos.includes('HORA') && !formData.valorHora) {
-        setErro('Defina o valor por hora');
+        setErro('Defina o valor por hora.');
         return;
       }
       if (formData.tiposPermitidos.includes('DIARIA') && !formData.valorDiaria) {
-        setErro('Defina o valor por dia');
+        setErro('Defina o valor por diária.');
         return;
       }
       if (formData.tiposPermitidos.includes('MENSAL') && !formData.valorMensal) {
-        setErro('Defina o valor mensal');
+        setErro('Defina o valor mensal.');
         return;
       }
       if (formData.tiposPermitidos.includes('ANUAL') && !formData.valorAnual) {
-        setErro('Defina o valor anual');
+        setErro('Defina o valor anual.');
         return;
       }
 
@@ -122,8 +120,8 @@ export default function ConfiguracaoLocacaoModal({
       });
 
       if (!response.ok) {
-        const erro = await response.json();
-        throw new Error(erro.erro || 'Erro ao salvar configuração');
+        const responseError = await response.json();
+        throw new Error(responseError.erro || 'Erro ao salvar configuração');
       }
 
       onSave();
@@ -138,184 +136,212 @@ export default function ConfiguracaoLocacaoModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Configurar Locação - Vaga {vaga.numero}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        <form onSubmit={(e) => { e.preventDefault(); handleSalvar(); }} className="p-6 space-y-4">
-          {erro && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-700">{erro}</p>
-            </div>
-          )}
-
-          {/* Disponibilidade */}
-          <div>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.disponivel}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    disponivel: e.target.checked,
-                  }))
-                }
-                className="w-4 h-4 text-blue-600 rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                Disponível para locação
-              </span>
-            </label>
-          </div>
-
-          {formData.disponivel && (
-            <>
-              {/* Tipos de Locação */}
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]">
+      <div className="flex min-h-full items-end justify-center sm:items-center sm:p-4">
+        <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[32px] bg-white shadow-2xl sm:rounded-[32px]">
+          <div className="sticky top-0 z-10 border-b border-slate-100 bg-white px-5 py-4">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 sm:hidden" />
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Tipos de Locação Permitidos *
-                </label>
-                <div className="space-y-2">
-                  {TIPOS_LOCACAO.map((tipo) => (
-                    <label key={tipo} className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.tiposPermitidos.includes(tipo)}
-                        onChange={() => toggleTipoLocacao(tipo)}
-                        className="w-4 h-4 text-blue-600 rounded"
-                      />
-                      <span className="text-sm text-gray-700">{tipo}</span>
-                    </label>
-                  ))}
-                </div>
+                <h2 className="text-xl font-bold text-slate-900">Configurar vaga {vaga.numero}</h2>
+                <p className="text-sm text-slate-500">
+                  Defina quando a vaga aparece para locação e quanto ela custa.
+                </p>
               </div>
-
-              {/* Valores */}
-              <div className="border-t pt-4 space-y-4">
-                <p className="text-sm font-medium text-gray-700">Valores</p>
-
-                {formData.tiposPermitidos.includes('HORA') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Valor por Hora (R$) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.valorHora}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          valorHora: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                )}
-
-                {formData.tiposPermitidos.includes('DIARIA') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Valor por Dia (R$) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.valorDiaria}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          valorDiaria: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                )}
-
-                {formData.tiposPermitidos.includes('MENSAL') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Valor Mensal (R$) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.valorMensal}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          valorMensal: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                )}
-
-                {formData.tiposPermitidos.includes('ANUAL') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Valor Anual (R$) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.valorAnual}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          valorAnual: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Botões */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={salvando}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={salvando}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              <Save className="h-4 w-4" />
-              {salvando ? 'Salvando...' : 'Salvar'}
-            </button>
+              <button
+                onClick={onClose}
+                className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
-        </form>
+
+          <div className="overflow-y-auto px-5 py-5">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSalvar();
+              }}
+              className="space-y-5"
+            >
+              {erro && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  {erro}
+                </div>
+              )}
+
+              <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={formData.disponivel}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        disponivel: e.target.checked,
+                      }))
+                    }
+                    className="mt-1 h-4 w-4 rounded text-blue-600"
+                  />
+                  <div>
+                    <p className="font-medium text-slate-900">Disponível para locação</p>
+                    <p className="text-sm text-slate-500">
+                      Quando ativada, sua vaga passa a aparecer para moradores do condomínio.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                A cobrança automática ainda não faz parte do piloto. Por enquanto, esta etapa
+                serve para publicação, valores e modalidades da vaga.
+              </div>
+
+              {formData.disponivel && (
+                <>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Modalidades permitidas</p>
+                      <p className="text-xs text-slate-500">
+                        Escolha uma ou mais formas de locação para essa vaga.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {TIPOS_LOCACAO.map((tipo) => (
+                        <button
+                          key={tipo}
+                          type="button"
+                          onClick={() => toggleTipoLocacao(tipo)}
+                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition-colors ${
+                            formData.tiposPermitidos.includes(tipo)
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          {tipo === 'HORA' && 'Por hora'}
+                          {tipo === 'DIARIA' && 'Diária'}
+                          {tipo === 'MENSAL' && 'Mensal'}
+                          {tipo === 'ANUAL' && 'Anual'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {formData.tiposPermitidos.includes('HORA') && (
+                      <div className="rounded-[28px] border border-slate-200 p-4">
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Valor por hora (R$)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.valorHora}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              valorHora: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
+
+                    {formData.tiposPermitidos.includes('DIARIA') && (
+                      <div className="rounded-[28px] border border-slate-200 p-4">
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Valor por diária (R$)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.valorDiaria}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              valorDiaria: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
+
+                    {formData.tiposPermitidos.includes('MENSAL') && (
+                      <div className="rounded-[28px] border border-slate-200 p-4">
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Valor mensal (R$)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.valorMensal}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              valorMensal: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
+
+                    {formData.tiposPermitidos.includes('ANUAL') && (
+                      <div className="rounded-[28px] border border-slate-200 p-4">
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Valor anual (R$)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.valorAnual}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              valorAnual: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div className="sticky bottom-0 grid gap-2 border-t border-slate-100 bg-white pb-1 pt-4 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={salvando}
+                  className="h-12 rounded-2xl border border-slate-300 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvando}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  {salvando ? 'Salvando...' : 'Salvar configuração'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       </div>
     </div>
   );

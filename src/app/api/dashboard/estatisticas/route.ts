@@ -22,7 +22,17 @@ export async function GET() {
     const isAdminMestre = ehAdministradorMestre(usuario);
 
     // Identificar perfil do usuário
-    const perfilPrincipal = usuario.perfis?.[0]?.tipo || 'morador';
+    const prioridadePerfis = [
+      'administrador_mestre',
+      'administrador_condominio',
+      'sindico',
+      'porteiro',
+      'morador',
+    ];
+    const perfilPrincipal =
+      prioridadePerfis.find((perfil) =>
+        usuario.perfis?.some((perfilUsuario) => perfilUsuario.tipo === perfil)
+      ) || 'morador';
     const condominioIds = usuario.perfis?.map(p => p.condominioId).filter(Boolean) || [];
 
     if (isAdminMestre) {
@@ -141,7 +151,11 @@ export async function GET() {
         }
       });
 
-    } else if (perfilPrincipal === 'sindico' || perfilPrincipal === 'administrador_condominio') {
+    } else if (
+      perfilPrincipal === 'sindico' ||
+      perfilPrincipal === 'administrador_condominio' ||
+      perfilPrincipal === 'porteiro'
+    ) {
       // ESTATÍSTICAS PARA SÍNDICO / ADMIN CONDOMÍNIO
       const [
         totalVagas,
@@ -208,7 +222,7 @@ export async function GET() {
       ]);
 
       return NextResponse.json({
-        perfil: 'sindico',
+        perfil: perfilPrincipal === 'porteiro' ? 'porteiro' : 'sindico',
         cards: {
           totalVagas,
           vagasDisponiveis,

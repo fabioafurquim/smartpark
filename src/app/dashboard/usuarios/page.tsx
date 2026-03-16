@@ -342,6 +342,7 @@ export default function UsuariosPage() {
                 <option value="administrador_mestre">Admin Mestre</option>
                 <option value="administrador_condominio">Admin Condomínio</option>
                 <option value="sindico">Síndico</option>
+                <option value="porteiro">Porteiro</option>
                 <option value="morador">Morador</option>
               </select>
             </div>
@@ -588,6 +589,7 @@ export default function UsuariosPage() {
                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                               <option value="morador">Morador</option>
+                              <option value="porteiro">Porteiro</option>
                               <option value="sindico">Síndico</option>
                               <option value="administrador_condominio">Admin Condomínio</option>
                               {usuario?.perfis?.some((p: any) => p.tipo === 'administrador_mestre') && (

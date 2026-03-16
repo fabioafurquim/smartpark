@@ -116,6 +116,7 @@ export type TipoPerfilUsuario =
   | 'administrador_mestre'
   | 'administrador_condominio'
   | 'sindico'
+  | 'porteiro'
   | 'morador';
 
 export type StatusSolicitacao = 
@@ -211,6 +212,16 @@ export interface Reserva {
   condominio?: Condominio;
 }
 
+export interface LocacaoEvento {
+  id: string;
+  locacaoId: string;
+  usuarioId?: string | null;
+  tipo: string;
+  titulo: string;
+  descricao?: string | null;
+  criadoEm: string;
+}
+
 export interface FormularioConfiguracaoLocacao {
   disponivel: boolean;
   tiposPermitidos: TipoLocacao[];
@@ -303,6 +314,7 @@ export interface Permissoes {
   aprovarSolicitacoes: boolean;
   visualizarRelatorios: boolean;
   configurarSistema: boolean;
+  monitorarLocacoes: boolean;
 }
 
 // Tipos para filtros e busca

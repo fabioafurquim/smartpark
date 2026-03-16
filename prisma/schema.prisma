@@ -47,6 +47,7 @@ model Usuario {
   unidades             Unidade[]             @relation("UnidadeUsuario")
   locacoesLocatario    Locacao[]             @relation("LocatarioLocacoes")
   locacoesProprietario Locacao[]             @relation("ProprietarioLocacoes")
+  locacaoEventos       LocacaoEvento[]
   notificacoes         Notificacao[]
 
   @@map("usuarios")
@@ -255,11 +256,30 @@ model Locacao {
   placaVeiculo   String?
   modeloVeiculo  String?
   status         String   @default("PENDENTE")
+  statusPagamento StatusPagamento @default(PENDENTE)
+  pagamentoPrevistoEm DateTime?
+  pagamentoReferencia String?
+  pagamentoObservacao String?
   
   criadoEm       DateTime @default(now())
   atualizadoEm   DateTime @updatedAt
+  eventos        LocacaoEvento[]
   
   @@map("locacoes")
+}
+
+model LocacaoEvento {
+  id         String   @id @default(cuid())
+  locacaoId  String
+  usuarioId  String?
+  tipo       String
+  titulo     String
+  descricao  String?
+  criadoEm   DateTime @default(now())
+  locacao    Locacao  @relation(fields: [locacaoId], references: [id], onDelete: Cascade)
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@map("locacoes_eventos")
 }
 
 model Notificacao {

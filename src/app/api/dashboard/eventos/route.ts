@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../lib/auth';
+import { authOptions, ehAdministradorMestre } from '../../../../lib/auth';
 import { prisma } from '../../../../lib/prisma';
 import { UsuarioSessao } from '../../../../types';
-import { ehAdministradorMestre } from '../../../../lib/auth';
 
 interface Evento {
   id: string;
@@ -15,124 +14,104 @@ interface Evento {
   cor: string;
 }
 
+function mapearVisualEvento(tipo: string) {
+  switch (tipo) {
+    case 'SOLICITACAO_CRIADA':
+      return { icone: 'alert-circle', cor: 'yellow' };
+    case 'LOCACAO_APROVADA':
+      return { icone: 'check-circle', cor: 'green' };
+    case 'LOCACAO_REJEITADA':
+      return { icone: 'x-circle', cor: 'red' };
+    case 'STATUS_FINALIZADA':
+      return { icone: 'check-circle', cor: 'blue' };
+    case 'STATUS_CANCELADA':
+      return { icone: 'x-circle', cor: 'red' };
+    case 'ENTRADA_PORTARIA':
+      return { icone: 'car', cor: 'green' };
+    case 'SAIDA_PORTARIA':
+      return { icone: 'car', cor: 'blue' };
+    default:
+      return { icone: 'calendar', cor: 'blue' };
+  }
+}
+
 /**
  * GET /api/dashboard/eventos
- * Retorna eventos recentes baseados no perfil do usuário
  */
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
     const usuario = session.user as UsuarioSessao;
     const eventos: Evento[] = [];
 
-    // Buscar locações recentes do usuário
-    const locacoesRecentes = await prisma.locacao.findMany({
-      where: {
-        OR: [
-          { locatarioId: usuario.id },
-          { proprietarioId: usuario.id }
-        ]
-      },
+    const where = ehAdministradorMestre(usuario)
+      ? {}
+      : {
+          OR: [
+            { locacao: { locatarioId: usuario.id } },
+            { locacao: { proprietarioId: usuario.id } },
+            {
+              locacao: {
+                vaga: {
+                  condominioId: {
+                    in: usuario.perfis.map((perfil) => perfil.condominioId),
+                  },
+                },
+              },
+            },
+          ],
+        };
+
+    const eventosLocacao = await prisma.locacaoEvento.findMany({
+      where,
       include: {
-        vaga: {
-          select: {
-            numero: true
-          }
+        locacao: {
+          include: {
+            vaga: {
+              select: {
+                numero: true,
+                condominio: {
+                  select: {
+                    nome: true,
+                  },
+                },
+              },
+            },
+          },
         },
-        locatario: {
-          select: {
-            nome: true
-          }
-        },
-        proprietario: {
-          select: {
-            nome: true
-          }
-        }
       },
       orderBy: { criadoEm: 'desc' },
-      take: 5
+      take: 8,
     });
 
-    // Converter locações em eventos
-    for (const locacao of locacoesRecentes) {
-      const ehProprietario = locacao.proprietarioId === usuario.id;
-      
-      let titulo = '';
-      let descricao = '';
-      let icone = 'car';
-      let cor = 'blue';
-
-      switch (locacao.status) {
-        case 'PENDENTE':
-          if (ehProprietario) {
-            titulo = 'Nova solicitação de locação';
-            descricao = `${locacao.locatario.nome} quer alugar sua vaga ${locacao.vaga.numero}`;
-            icone = 'alert-circle';
-            cor = 'yellow';
-          } else {
-            titulo = 'Locação aguardando aprovação';
-            descricao = `Sua solicitação para vaga ${locacao.vaga.numero} está pendente`;
-            icone = 'clock';
-            cor = 'yellow';
-          }
-          break;
-        case 'ATIVA':
-          if (ehProprietario) {
-            titulo = 'Locação ativa';
-            descricao = `Sua vaga ${locacao.vaga.numero} está alugada para ${locacao.locatario.nome}`;
-            icone = 'check-circle';
-            cor = 'green';
-          } else {
-            titulo = 'Locação aprovada';
-            descricao = `Sua locação da vaga ${locacao.vaga.numero} foi aprovada`;
-            icone = 'check-circle';
-            cor = 'green';
-          }
-          break;
-        case 'REJEITADA':
-          titulo = 'Locação rejeitada';
-          descricao = `A locação da vaga ${locacao.vaga.numero} foi rejeitada`;
-          icone = 'x-circle';
-          cor = 'red';
-          break;
-        case 'FINALIZADA':
-          titulo = 'Locação finalizada';
-          descricao = `A locação da vaga ${locacao.vaga.numero} foi concluída`;
-          icone = 'check';
-          cor = 'blue';
-          break;
-      }
-
+    for (const evento of eventosLocacao) {
+      const visual = mapearVisualEvento(evento.tipo);
       eventos.push({
-        id: locacao.id,
+        id: evento.id,
         tipo: 'locacao',
-        titulo,
-        descricao,
-        data: locacao.criadoEm.toISOString(),
-        icone,
-        cor
+        titulo: evento.titulo,
+        descricao:
+          evento.descricao ||
+          `${evento.locacao.vaga.condominio.nome} • vaga ${evento.locacao.vaga.numero}`,
+        data: evento.criadoEm.toISOString(),
+        icone: visual.icone,
+        cor: visual.cor,
       });
     }
 
-    // Se for admin mestre, adicionar eventos globais
     if (ehAdministradorMestre(usuario)) {
-      // Buscar novos usuários
       const novosUsuarios = await prisma.usuario.findMany({
         orderBy: { criadoEm: 'desc' },
-        take: 3,
+        take: 2,
         select: {
           id: true,
           nome: true,
-          criadoEm: true
-        }
+          criadoEm: true,
+        },
       });
 
       for (const novoUsuario of novosUsuarios) {
@@ -140,47 +119,18 @@ export async function GET() {
           id: `usuario-${novoUsuario.id}`,
           tipo: 'usuario',
           titulo: 'Novo usuário cadastrado',
-          descricao: `${novoUsuario.nome} se cadastrou no sistema`,
+          descricao: `${novoUsuario.nome} entrou no sistema`,
           data: novoUsuario.criadoEm.toISOString(),
           icone: 'user-plus',
-          cor: 'purple'
-        });
-      }
-
-      // Buscar novas vagas
-      const novasVagas = await prisma.vaga.findMany({
-        orderBy: { criadoEm: 'desc' },
-        take: 3,
-        include: {
-          condominio: {
-            select: { nome: true }
-          }
-        }
-      });
-
-      for (const vaga of novasVagas) {
-        eventos.push({
-          id: `vaga-${vaga.id}`,
-          tipo: 'vaga',
-          titulo: 'Nova vaga cadastrada',
-          descricao: `Vaga ${vaga.numero} criada em ${vaga.condominio.nome}`,
-          data: vaga.criadoEm.toISOString(),
-          icone: 'car',
-          cor: 'blue'
+          cor: 'purple',
         });
       }
     }
 
-    // Ordenar por data
     eventos.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-
-    // Limitar a 10 eventos
     return NextResponse.json(eventos.slice(0, 10));
   } catch (error) {
     console.error('Erro ao buscar eventos:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

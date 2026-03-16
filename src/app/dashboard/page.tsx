@@ -129,7 +129,7 @@ export default function DashboardPage() {
       ];
     }
 
-    if (perfil === 'sindico') {
+    if (perfil === 'sindico' || perfil === 'porteiro') {
       return [
         { titulo: 'Total de Vagas', valor: cards.totalVagas, icone: Car, cor: 'bg-blue-500' },
         { titulo: 'Vagas Disponíveis', valor: cards.vagasDisponiveis, icone: MapPin, cor: 'bg-teal-500' },
@@ -164,7 +164,7 @@ export default function DashboardPage() {
       ];
     }
 
-    if (perfil === 'sindico') {
+    if (perfil === 'sindico' || perfil === 'porteiro') {
       return [
         { titulo: 'Locações no Mês', valor: metricas.locacoesMes, icone: Calendar, tendencia: 'up' },
         { titulo: 'Receita do Mês', valor: `R$ ${(metricas.receitaMes || 0).toFixed(2)}`, icone: DollarSign, tendencia: 'up' },
@@ -254,7 +254,7 @@ export default function DashboardPage() {
           "grid gap-4",
           estatisticas?.perfil === 'administrador_mestre' 
             ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-4" 
-            : estatisticas?.perfil === 'sindico'
+            : estatisticas?.perfil === 'sindico' || estatisticas?.perfil === 'porteiro'
               ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
               : "grid-cols-1 md:grid-cols-2"
         )}>
@@ -495,8 +495,8 @@ export default function DashboardPage() {
                 </Link>
                 <Link href="/reservas-admin" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <BarChart3 className="w-8 h-8 text-purple-600 mb-2" />
-                  <h4 className="font-medium text-gray-900">Reservas Globais</h4>
-                  <p className="text-sm text-gray-600">Ver todas as locações</p>
+                  <h4 className="font-medium text-gray-900">Monitoramento Global</h4>
+                  <p className="text-sm text-gray-600">Ver locacoes de todos os condominios</p>
                 </Link>
               </>
             )}
@@ -512,10 +512,19 @@ export default function DashboardPage() {
                   <h4 className="font-medium text-gray-900">Gerenciar Unidades</h4>
                   <p className="text-sm text-gray-600">Administrar unidades</p>
                 </Link>
-                <Link href="/minhas-locacoes" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                <Link href="/reservas-sindico" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
                   <Calendar className="w-8 h-8 text-purple-600 mb-2" />
-                  <h4 className="font-medium text-gray-900">Ver Locações</h4>
-                  <p className="text-sm text-gray-600">Acompanhar locações</p>
+                  <h4 className="font-medium text-gray-900">Monitoramento de Veiculos</h4>
+                  <p className="text-sm text-gray-600">Acompanhar locacoes e placas</p>
+                </Link>
+              </>
+            )}
+            {estatisticas?.perfil === 'porteiro' && (
+              <>
+                <Link href="/reservas-sindico" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left block">
+                  <Calendar className="w-8 h-8 text-blue-600 mb-2" />
+                  <h4 className="font-medium text-gray-900">Monitoramento de Veiculos</h4>
+                  <p className="text-sm text-gray-600">Consultar locacoes ativas e placas</p>
                 </Link>
               </>
             )}

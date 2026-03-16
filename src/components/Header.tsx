@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSession, signOut } from 'next-auth/react';
-import { 
-  Menu,
-  Bell, 
-  User, 
-  Settings,
-  LogOut, 
-  ChevronDown,
-  CheckCircle,
-  XCircle,
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { signOut, useSession } from 'next-auth/react';
+import {
   AlertTriangle,
+  Bell,
+  CheckCircle,
+  ChevronDown,
+  LogOut,
+  Menu,
+  Settings,
+  User,
+  XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UsuarioSessao } from '@/types';
@@ -32,9 +33,6 @@ interface HeaderProps {
   aoAlternarSidebar: () => void;
 }
 
-/**
- * Componente Header - Cabeçalho da aplicação
- */
 export function Header({ titulo, subtitulo, aoAlternarSidebar }: HeaderProps) {
   const { data: session, status } = useSession();
   const [menuUsuarioAberto, setMenuUsuarioAberto] = useState(false);
@@ -44,7 +42,6 @@ export function Header({ titulo, subtitulo, aoAlternarSidebar }: HeaderProps) {
 
   const usuario = session?.user as UsuarioSessao;
 
-  // Carregar notificações
   useEffect(() => {
     const carregarNotificacoes = async () => {
       try {
@@ -60,34 +57,32 @@ export function Header({ titulo, subtitulo, aoAlternarSidebar }: HeaderProps) {
     };
 
     if (status === 'authenticated') {
-      carregarNotificacoes();
-      // Atualizar a cada 30 segundos
+      void carregarNotificacoes();
       const interval = setInterval(carregarNotificacoes, 30000);
       return () => clearInterval(interval);
     }
   }, [status]);
 
-  // Marcar notificações como lidas ao abrir
   const handleAbrirNotificacoes = async () => {
-    setNotificacoesAbertas(!notificacoesAbertas);
-    
-    if (!notificacoesAbertas && naoLidas > 0) {
+    const vaiAbrir = !notificacoesAbertas;
+    setNotificacoesAbertas(vaiAbrir);
+    setMenuUsuarioAberto(false);
+
+    if (vaiAbrir && naoLidas > 0) {
       try {
         await fetch('/api/notificacoes', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ marcarTodas: true })
+          body: JSON.stringify({ marcarTodas: true }),
         });
         setNaoLidas(0);
-        // Atualizar lista marcando como lidas
-        setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
+        setNotificacoes((prev) => prev.map((notificacao) => ({ ...notificacao, lida: true })));
       } catch (error) {
         console.error('Erro ao marcar notificações:', error);
       }
     }
   };
 
-  // Formatar tempo relativo
   const formatarTempoRelativo = (data: string) => {
     const agora = new Date();
     const dataNotif = new Date(data);
@@ -103,105 +98,96 @@ export function Header({ titulo, subtitulo, aoAlternarSidebar }: HeaderProps) {
     return dataNotif.toLocaleDateString('pt-BR');
   };
 
-  // Obter ícone da notificação
   const getIconeNotificacao = (tipo: string) => {
     switch (tipo) {
-      case 'LOCACAO_SOLICITADA': return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
-      case 'LOCACAO_APROVADA': return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'LOCACAO_REJEITADA': return <XCircle className="w-4 h-4 text-red-600" />;
-      case 'LOCACAO_CANCELADA': return <XCircle className="w-4 h-4 text-gray-600" />;
-      default: return <Bell className="w-4 h-4 text-blue-600" />;
+      case 'LOCACAO_SOLICITADA':
+        return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
+      case 'LOCACAO_APROVADA':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'LOCACAO_REJEITADA':
+        return <XCircle className="h-4 w-4 text-red-600" />;
+      case 'LOCACAO_CANCELADA':
+        return <XCircle className="h-4 w-4 text-gray-600" />;
+      default:
+        return <Bell className="h-4 w-4 text-blue-600" />;
     }
   };
 
-  // Função para fazer logout
   const handleLogout = async () => {
     await signOut({ callbackUrl: '/login' });
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4">
-      <div className="flex items-center justify-between">
-        {/* Lado esquerdo - Botão menu e título */}
-        <div className="flex items-center space-x-4">
-          {/* Botão para alternar sidebar */}
+    <header className="sticky top-0 z-30 border-b border-white/60 bg-white/85 px-4 py-3 backdrop-blur sm:px-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <button
             onClick={aoAlternarSidebar}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm transition-colors hover:bg-slate-50"
           >
-            <Menu className="w-5 h-5 text-gray-600" />
+            <Menu className="h-5 w-5 text-slate-700" />
           </button>
 
-          {/* Título e subtítulo */}
-          {titulo && (
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {titulo}
-              </h1>
+          {(titulo || subtitulo) && (
+            <div className="min-w-0">
+              {titulo && (
+                <h1 className="truncate text-lg font-semibold text-slate-900 sm:text-xl">
+                  {titulo}
+                </h1>
+              )}
               {subtitulo && (
-                <p className="text-sm text-gray-600 mt-1">
-                  {subtitulo}
-                </p>
+                <p className="mt-0.5 hidden text-sm text-slate-600 sm:block">{subtitulo}</p>
               )}
             </div>
           )}
         </div>
 
-        {/* Lado direito - Notificações e menu do usuário */}
-        <div className="flex items-center space-x-4">
-          {/* Notificações */}
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="relative">
             <button
               onClick={handleAbrirNotificacoes}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative"
+              className="relative rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm transition-colors hover:bg-slate-50"
             >
-              <Bell className="w-5 h-5 text-gray-600" />
-              {/* Badge de notificações não lidas */}
+              <Bell className="h-5 w-5 text-slate-700" />
               {naoLidas > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
                   {naoLidas > 9 ? '9+' : naoLidas}
                 </span>
               )}
             </button>
 
-            {/* Dropdown de notificações */}
             {notificacoesAbertas && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">Notificações</h3>
+              <div className="absolute right-0 top-14 z-50 w-[min(92vw,24rem)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-200">
+                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                  <h3 className="font-semibold text-slate-900">Notificações</h3>
                   {notificacoes.length > 0 && (
-                    <span className="text-xs text-gray-500">
-                      {notificacoes.length} recentes
-                    </span>
+                    <span className="text-xs text-slate-500">{notificacoes.length} recentes</span>
                   )}
                 </div>
-                <div className="max-h-80 overflow-y-auto">
+
+                <div className="max-h-[60vh] overflow-y-auto">
                   {notificacoes.length === 0 ? (
                     <div className="p-6 text-center">
-                      <Bell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500">Nenhuma notificação</p>
+                      <Bell className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+                      <p className="text-sm text-slate-500">Nenhuma notificação</p>
                     </div>
                   ) : (
                     notificacoes.map((notificacao) => (
-                      <div 
-                        key={notificacao.id} 
+                      <div
+                        key={notificacao.id}
                         className={cn(
-                          "p-4 hover:bg-gray-50 border-b border-gray-100 cursor-pointer",
-                          !notificacao.lida && "bg-blue-50"
+                          'border-b border-slate-100 px-4 py-3',
+                          !notificacao.lida && 'bg-blue-50/70'
                         )}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="mt-0.5">
-                            {getIconeNotificacao(notificacao.tipo)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">
-                              {notificacao.titulo}
-                            </p>
-                            <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                          <div className="mt-0.5">{getIconeNotificacao(notificacao.tipo)}</div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-slate-900">{notificacao.titulo}</p>
+                            <p className="mt-1 line-clamp-3 text-xs text-slate-600">
                               {notificacao.mensagem}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="mt-1 text-[11px] text-slate-500">
                               {formatarTempoRelativo(notificacao.criadoEm)}
                             </p>
                           </div>
@@ -210,71 +196,76 @@ export function Header({ titulo, subtitulo, aoAlternarSidebar }: HeaderProps) {
                     ))
                   )}
                 </div>
+
                 {notificacoes.length > 0 && (
-                  <div className="p-3 border-t border-gray-200">
-                    <a 
-                      href="/minhas-locacoes" 
-                      className="block text-center text-sm text-primary-600 hover:text-primary-700 font-medium"
+                  <div className="border-t border-slate-100 p-3">
+                    <Link
+                      href="/minhas-locacoes"
+                      onClick={() => setNotificacoesAbertas(false)}
+                      className="block rounded-2xl bg-slate-100 px-4 py-2 text-center text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200"
                     >
                       Ver minhas locações
-                    </a>
+                    </Link>
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* Menu do usuário */}
           {usuario && (
             <div className="relative">
               <button
-                onClick={() => setMenuUsuarioAberto(!menuUsuarioAberto)}
-                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                onClick={() => {
+                  setMenuUsuarioAberto((prev) => !prev);
+                  setNotificacoesAbertas(false);
+                }}
+                className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm transition-colors hover:bg-slate-50 sm:px-3"
               >
-                {/* Avatar */}
-                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-100">
                   <span className="text-sm font-medium text-primary-700">
-                    {usuario?.nome?.charAt(0)?.toUpperCase() || 'U'}
+                    {usuario.nome?.charAt(0)?.toUpperCase() || 'U'}
                   </span>
                 </div>
-                
-                {/* Nome e perfil */}
-                <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-gray-900">
-                    {usuario?.nome || 'Usuário'}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {usuario?.perfis?.[0]?.tipo?.replace('_', ' ') || 'Usuário'}
+
+                <div className="hidden text-left md:block">
+                  <p className="text-sm font-medium text-slate-900">{usuario.nome || 'Usuario'}</p>
+                  <p className="text-xs capitalize text-slate-500">
+                    {usuario.perfis?.[0]?.tipo?.replace('_', ' ') || 'Usuario'}
                   </p>
                 </div>
-                
-                <ChevronDown className="w-4 h-4 text-gray-600" />
+
+                <ChevronDown className="hidden h-4 w-4 text-slate-500 sm:block" />
               </button>
 
-              {/* Dropdown do usuário */}
               {menuUsuarioAberto && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                  <div className="p-2">
-                    <button className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                      <User className="w-4 h-4" />
-                      <span>Meu Perfil</span>
-                    </button>
-                    
-                    <button className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                      <Settings className="w-4 h-4" />
-                      <span>Configurações</span>
-                    </button>
-                    
-                    <hr className="my-2 border-gray-200" />
-                    
-                    <button 
-                      onClick={handleLogout}
-                      className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>Sair</span>
-                    </button>
-                  </div>
+                <div className="absolute right-0 top-14 z-50 w-60 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-200">
+                  <Link
+                    href="/dashboard/perfil"
+                    onClick={() => setMenuUsuarioAberto(false)}
+                    className="flex items-center gap-3 rounded-2xl px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100"
+                  >
+                    <User className="h-4 w-4" />
+                    <span>Meu perfil</span>
+                  </Link>
+
+                  <Link
+                    href="/dashboard/perfil"
+                    onClick={() => setMenuUsuarioAberto(false)}
+                    className="flex items-center gap-3 rounded-2xl px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100"
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>Conta e senha</span>
+                  </Link>
+
+                  <div className="my-2 border-t border-slate-100" />
+
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Sair</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -282,10 +273,9 @@ export function Header({ titulo, subtitulo, aoAlternarSidebar }: HeaderProps) {
         </div>
       </div>
 
-      {/* Overlay para fechar dropdowns */}
       {(menuUsuarioAberto || notificacoesAbertas) && (
-        <div 
-          className="fixed inset-0 z-40" 
+        <div
+          className="fixed inset-0 z-40"
           onClick={() => {
             setMenuUsuarioAberto(false);
             setNotificacoesAbertas(false);

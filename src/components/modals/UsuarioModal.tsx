@@ -9,7 +9,12 @@ interface Usuario {
   email: string;
   perfis: Array<{
     id: string;
-    tipo: 'administrador_mestre' | 'administrador_condominio' | 'sindico' | 'morador';
+    tipo:
+      | 'administrador_mestre'
+      | 'administrador_condominio'
+      | 'sindico'
+      | 'porteiro'
+      | 'morador';
     ativo: boolean;
     condominio?: {
       id: string;
@@ -29,7 +34,12 @@ interface UsuarioFormData {
   senha?: string;
   perfis: Array<{
     condominioId: string;
-    tipo: 'administrador_mestre' | 'administrador_condominio' | 'sindico' | 'morador';
+    tipo:
+      | 'administrador_mestre'
+      | 'administrador_condominio'
+      | 'sindico'
+      | 'porteiro'
+      | 'morador';
     ativo?: boolean;
   }>;
 }
@@ -201,6 +211,8 @@ export default function UsuarioModal({
         return 'bg-blue-100 text-blue-800';
       case 'sindico':
         return 'bg-purple-100 text-purple-800';
+      case 'porteiro':
+        return 'bg-amber-100 text-amber-800';
       case 'morador':
         return 'bg-green-100 text-green-800';
       default:
@@ -364,6 +376,7 @@ export default function UsuarioModal({
                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="morador">Morador</option>
+                          <option value="porteiro">Porteiro</option>
                           <option value="sindico">Síndico</option>
                           <option value="administrador_condominio">Admin Condomínio</option>
                           <option value="administrador_mestre">Admin Mestre</option>

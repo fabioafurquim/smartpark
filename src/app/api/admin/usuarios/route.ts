@@ -8,7 +8,15 @@ import { hash } from 'bcryptjs';
 
 const filtrosSchema = z.object({
   busca: z.string().optional(),
-  tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador']).optional(),
+  tipo: z
+    .enum([
+      'administrador_mestre',
+      'administrador_condominio',
+      'sindico',
+      'porteiro',
+      'morador',
+    ])
+    .optional(),
   ativo: z.enum(['true', 'false']).optional(),
   pagina: z.coerce.number().min(1).default(1),
   limite: z.coerce.number().min(1).max(100).default(20),
@@ -160,7 +168,13 @@ export async function POST(request: NextRequest) {
       perfis: z.array(
         z.object({
           condominioId: z.string().min(1, 'ID do condomínio é obrigatório'),
-          tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador']),
+          tipo: z.enum([
+            'administrador_mestre',
+            'administrador_condominio',
+            'sindico',
+            'porteiro',
+            'morador',
+          ]),
           ativo: z.boolean().optional(),
           permissoes: z.record(z.string(), z.boolean()).optional(),
         })

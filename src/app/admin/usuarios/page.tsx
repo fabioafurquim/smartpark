@@ -203,6 +203,7 @@ export default function AdminUsuariosPage() {
     { valor: 'administrador_mestre', label: 'Administrador Mestre' },
     { valor: 'administrador_condominio', label: 'Administrador Condomínio' },
     { valor: 'sindico', label: 'Síndico' },
+    { valor: 'porteiro', label: 'Porteiro' },
     { valor: 'morador', label: 'Morador' },
   ];
 

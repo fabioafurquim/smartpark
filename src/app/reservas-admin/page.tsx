@@ -1,8 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Calendar, CheckCircle, XCircle, Clock, User, DollarSign, Building2, AlertCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle,
+  Building2,
+  Calendar,
+  Car,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Search,
+  User,
+  XCircle,
+} from 'lucide-react';
 import { Layout } from '@/components';
+
+interface LocacaoEvento {
+  id: string;
+  titulo: string;
+  descricao?: string | null;
+  criadoEm: string;
+}
 
 interface Locacao {
   id: string;
@@ -11,6 +29,9 @@ interface Locacao {
   tipoLocacao: string;
   valor: number;
   status: string;
+  statusPagamento: string;
+  placaVeiculo: string | null;
+  modeloVeiculo: string | null;
   vaga: {
     numero: string;
     unidade: {
@@ -34,113 +55,166 @@ interface Locacao {
     nome: string;
     email: string;
   };
+  eventos: LocacaoEvento[];
+}
+
+const STATUS_OPTIONS = [
+  { value: 'ATIVA', label: 'Ativas' },
+  { value: 'PENDENTE', label: 'Pendentes' },
+  { value: 'FINALIZADA', label: 'Finalizadas' },
+  { value: 'CANCELADA', label: 'Canceladas' },
+  { value: 'TODAS', label: 'Todas' },
+];
+
+function formatarData(data: string) {
+  return new Date(data).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'PENDENTE':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'ATIVA':
+      return 'bg-green-100 text-green-800';
+    case 'CANCELADA':
+      return 'bg-red-100 text-red-800';
+    case 'FINALIZADA':
+      return 'bg-slate-100 text-slate-700';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
+}
+
+function getStatusIcon(status: string) {
+  switch (status) {
+    case 'PENDENTE':
+      return <Clock className="h-4 w-4" />;
+    case 'ATIVA':
+      return <CheckCircle className="h-4 w-4" />;
+    case 'CANCELADA':
+      return <XCircle className="h-4 w-4" />;
+    case 'FINALIZADA':
+      return <CheckCircle className="h-4 w-4" />;
+    default:
+      return null;
+  }
+}
+
+function getStatusPagamentoLabel(status: string) {
+  switch (status) {
+    case 'PENDENTE':
+      return 'Pagamento futuro';
+    case 'CONFIRMADO':
+      return 'Pagamento confirmado';
+    case 'CANCELADO':
+      return 'Pagamento cancelado';
+    case 'REEMBOLSADO':
+      return 'Pagamento reembolsado';
+    default:
+      return status;
+  }
 }
 
 export default function ReservasAdminPage() {
   const [locacoes, setLocacoes] = useState<Locacao[]>([]);
   const [carregando, setCarregando] = useState(true);
-  const [filtroStatus, setFiltroStatus] = useState<string>('TODAS');
+  const [filtroStatus, setFiltroStatus] = useState<string>('ATIVA');
   const [filtroCondominio, setFiltroCondominio] = useState<string>('');
-  const [condominios, setCondominios] = useState<{id: string, nome: string}[]>([]);
+  const [busca, setBusca] = useState('');
   const [erro, setErro] = useState('');
   const [acesso, setAcesso] = useState(true);
 
   useEffect(() => {
-    carregarDados();
+    const carregarDados = async () => {
+      try {
+        setCarregando(true);
+        setErro('');
+        setAcesso(true);
+
+        const response = await fetch('/api/locacoes/todas');
+        if (response.ok) {
+          const dados = await response.json();
+          setLocacoes(dados);
+          return;
+        }
+
+        if (response.status === 403) {
+          setErro(
+            'Acesso negado. Apenas administradores mestres podem acompanhar o monitoramento global.'
+          );
+          setAcesso(false);
+          return;
+        }
+
+        const data = await response.json().catch(() => null);
+        setErro(data?.error || 'Erro ao carregar o monitoramento');
+      } catch (error) {
+        console.error('Erro ao carregar locações:', error);
+        setErro('Erro ao carregar o monitoramento');
+      } finally {
+        setCarregando(false);
+      }
+    };
+
+    void carregarDados();
   }, []);
 
-  const carregarDados = async () => {
-    try {
-      setCarregando(true);
-      
-      // Buscar todas as locações (sem filtro de condomínio para admin)
-      const response = await fetch('/api/locacoes/todas');
-      if (response.ok) {
-        const dados = await response.json();
-        setLocacoes(dados);
-        
-        // Extrair condomínios únicos
-        const condominiosUnicos = Array.from(
-          new Map(dados.map((l: Locacao) => [l.vaga.condominio.id, l.vaga.condominio])).values()
-        );
-        setCondominios(condominiosUnicos as any);
-      } else if (response.status === 403) {
-        setErro('Acesso negado. Apenas administradores podem visualizar todas as reservas.');
-        setAcesso(false);
-      } else {
-        setErro('Erro ao carregar reservas');
-      }
-    } catch (error) {
-      console.error('Erro ao carregar locações:', error);
-      setErro('Erro ao carregar reservas');
-    } finally {
-      setCarregando(false);
-    }
-  };
+  const condominios = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          locacoes.map((locacao) => [locacao.vaga.condominio.id, locacao.vaga.condominio])
+        ).values()
+      ),
+    [locacoes]
+  );
 
-  const locacoesFiltradas = locacoes.filter(loc => {
-    const statusOk = filtroStatus === 'TODAS' || loc.status === filtroStatus;
-    const condominioOk = !filtroCondominio || loc.vaga.condominio.id === filtroCondominio;
-    return statusOk && condominioOk;
-  });
+  const locacoesFiltradas = useMemo(
+    () =>
+      locacoes.filter((locacao) => {
+        const statusOk = filtroStatus === 'TODAS' || locacao.status === filtroStatus;
+        const condominioOk =
+          !filtroCondominio || locacao.vaga.condominio.id === filtroCondominio;
+        const termo = busca.trim().toLowerCase();
+        const buscaOk =
+          !termo ||
+          locacao.placaVeiculo?.toLowerCase().includes(termo) ||
+          locacao.modeloVeiculo?.toLowerCase().includes(termo) ||
+          locacao.locatario.nome.toLowerCase().includes(termo) ||
+          locacao.proprietario.nome.toLowerCase().includes(termo) ||
+          locacao.vaga.numero.toLowerCase().includes(termo) ||
+          locacao.vaga.unidade.numero.toLowerCase().includes(termo) ||
+          locacao.vaga.condominio.nome.toLowerCase().includes(termo);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PENDENTE':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'ATIVA':
-        return 'bg-green-100 text-green-800';
-      case 'CANCELADA':
-        return 'bg-red-100 text-red-800';
-      case 'FINALIZADA':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+        return statusOk && condominioOk && !!buscaOk;
+      }),
+    [busca, filtroCondominio, filtroStatus, locacoes]
+  );
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'PENDENTE':
-        return <Clock className="h-4 w-4" />;
-      case 'ATIVA':
-        return <CheckCircle className="h-4 w-4" />;
-      case 'CANCELADA':
-        return <XCircle className="h-4 w-4" />;
-      case 'FINALIZADA':
-        return <CheckCircle className="h-4 w-4" />;
-      default:
-        return null;
-    }
-  };
-
-  const formatarData = (data: string) => {
-    return new Date(data).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getEstatisticas = () => {
-    return {
+  const stats = useMemo(
+    () => ({
       total: locacoes.length,
-      pendentes: locacoes.filter(l => l.status === 'PENDENTE').length,
-      ativas: locacoes.filter(l => l.status === 'ATIVA').length,
-      finalizadas: locacoes.filter(l => l.status === 'FINALIZADA').length,
-      canceladas: locacoes.filter(l => l.status === 'CANCELADA').length,
-    };
-  };
+      pendentes: locacoes.filter((locacao) => locacao.status === 'PENDENTE').length,
+      ativas: locacoes.filter((locacao) => locacao.status === 'ATIVA').length,
+      finalizadas: locacoes.filter((locacao) => locacao.status === 'FINALIZADA').length,
+      canceladas: locacoes.filter((locacao) => locacao.status === 'CANCELADA').length,
+    }),
+    [locacoes]
+  );
 
   if (!acesso) {
     return (
       <Layout>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-center gap-3">
+        <div className="flex items-center gap-3 rounded-[28px] border border-red-200 bg-red-50 p-6">
           <AlertCircle className="h-6 w-6 text-red-600" />
           <div>
-            <h2 className="font-bold text-red-900">Acesso Negado</h2>
+            <h2 className="font-bold text-red-900">Acesso negado</h2>
             <p className="text-red-700">{erro}</p>
           </div>
         </div>
@@ -148,179 +222,228 @@ export default function ReservasAdminPage() {
     );
   }
 
-  if (carregando) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </Layout>
-    );
-  }
-
-  const stats = getEstatisticas();
-
   return (
     <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <Calendar className="h-8 w-8 text-blue-600" />
-            Reservas Globais - Todos os Condomínios
-          </h1>
-          <p className="text-gray-600 mt-1">Visualize todas as locações de vagas em todos os condomínios</p>
-        </div>
-
-        {/* Estatísticas */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-white rounded-lg shadow-sm border p-4">
-            <p className="text-gray-600 text-sm">Total</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+      <div className="space-y-5">
+        <section className="overflow-hidden rounded-[28px] border border-blue-100 bg-[linear-gradient(135deg,_#eff6ff_0%,_#ffffff_60%)] p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center rounded-full bg-white/85 px-3 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100">
+                Visão global do piloto
+              </div>
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+                <Car className="h-7 w-7 text-blue-600" />
+                Monitoramento global
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
+                Acompanhe veículos, valores, status e a trilha operacional das locações em todos os
+                condomínios.
+              </p>
+            </div>
           </div>
-          <div className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 p-4">
-            <p className="text-yellow-700 text-sm">Pendentes</p>
+        </section>
+
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs text-slate-500">Total</p>
+            <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
+          </div>
+          <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 shadow-sm">
+            <p className="text-xs text-yellow-700">Pendentes</p>
             <p className="text-2xl font-bold text-yellow-900">{stats.pendentes}</p>
           </div>
-          <div className="bg-green-50 rounded-lg shadow-sm border border-green-200 p-4">
-            <p className="text-green-700 text-sm">Ativas</p>
+          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 shadow-sm">
+            <p className="text-xs text-green-700">Ativas</p>
             <p className="text-2xl font-bold text-green-900">{stats.ativas}</p>
           </div>
-          <div className="bg-gray-50 rounded-lg shadow-sm border border-gray-200 p-4">
-            <p className="text-gray-700 text-sm">Finalizadas</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.finalizadas}</p>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            <p className="text-xs text-slate-700">Finalizadas</p>
+            <p className="text-2xl font-bold text-slate-900">{stats.finalizadas}</p>
           </div>
-          <div className="bg-red-50 rounded-lg shadow-sm border border-red-200 p-4">
-            <p className="text-red-700 text-sm">Canceladas</p>
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
+            <p className="text-xs text-red-700">Canceladas</p>
             <p className="text-2xl font-bold text-red-900">{stats.canceladas}</p>
           </div>
-        </div>
+        </section>
 
-        {/* Filtros */}
-        <div className="bg-white rounded-lg shadow-sm border p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid gap-4 lg:grid-cols-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Building2 className="h-4 w-4 inline mr-1" />
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                <Building2 className="mr-1 inline h-4 w-4" />
                 Condomínio
               </label>
               <select
                 value={filtroCondominio}
-                onChange={(e) => setFiltroCondominio(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(event) => setFiltroCondominio(event.target.value)}
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Todos os Condomínios</option>
-                {condominios.map(cond => (
-                  <option key={cond.id} value={cond.id}>{cond.nome}</option>
+                <option value="">Todos os condomínios</option>
+                {condominios.map((condominio) => (
+                  <option key={condominio.id} value={condominio.id}>
+                    {condominio.nome}
+                  </option>
                 ))}
               </select>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Filtrar por Status
-              </label>
+              <label className="mb-2 block text-sm font-medium text-slate-700">Status</label>
               <select
                 value={filtroStatus}
-                onChange={(e) => setFiltroStatus(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(event) => setFiltroStatus(event.target.value)}
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="TODAS">Todas</option>
-                <option value="PENDENTE">Pendentes</option>
-                <option value="ATIVA">Ativas</option>
-                <option value="FINALIZADA">Finalizadas</option>
-                <option value="CANCELADA">Canceladas</option>
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
-          </div>
-        </div>
 
-        {/* Erro */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                <Search className="mr-1 inline h-4 w-4" />
+                Buscar
+              </label>
+              <input
+                type="text"
+                value={busca}
+                onChange={(event) => setBusca(event.target.value)}
+                placeholder="Placa, vaga, condomínio ou morador"
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        </section>
+
         {erro && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-red-700">
             {erro}
           </div>
         )}
 
-        {/* Lista de Locações */}
-        {locacoesFiltradas.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
-            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600 text-lg">Nenhuma reserva encontrada</p>
+        {carregando ? (
+          <div className="flex h-64 items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
+          </div>
+        ) : locacoesFiltradas.length === 0 ? (
+          <div className="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <Car className="mx-auto mb-3 h-12 w-12 text-slate-300" />
+            <p className="text-lg text-slate-600">Nenhuma locação encontrada</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {locacoesFiltradas.map(locacao => (
-              <div key={locacao.id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
-                <div className="p-4 space-y-4">
-                  {/* Header */}
-                  <div className="flex items-start justify-between">
+            {locacoesFiltradas.map((locacao) => (
+              <article
+                key={locacao.id}
+                className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+              >
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900">
-                        {locacao.vaga.condominio.nome} - Vaga {locacao.vaga.numero}
+                      <h3 className="text-lg font-bold text-slate-900">
+                        {locacao.vaga.condominio.nome} • Vaga {locacao.vaga.numero}
                       </h3>
-                      <p className="text-sm text-gray-600">
-                        {locacao.vaga.unidade.torre.nome} - Unidade {locacao.vaga.unidade.numero}
+                      <p className="text-sm text-slate-600">
+                        {locacao.vaga.unidade.torre.nome} • Unidade {locacao.vaga.unidade.numero}
                       </p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${getStatusColor(locacao.status)}`}>
-                      {getStatusIcon(locacao.status)}
-                      {locacao.status}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium ${getStatusColor(
+                          locacao.status
+                        )}`}
+                      >
+                        {getStatusIcon(locacao.status)}
+                        {locacao.status}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                        {getStatusPagamentoLabel(locacao.statusPagamento)}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Grid de Informações */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {/* Proprietário */}
-                    <div className="bg-blue-50 p-3 rounded">
-                      <div className="flex items-center gap-1 text-blue-600 text-sm mb-1">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="mb-1 flex items-center gap-1 text-sm text-slate-600">
+                        <Car className="h-4 w-4" />
+                        Veículo
+                      </div>
+                      <p className="text-lg font-bold text-slate-900">
+                        {locacao.placaVeiculo || 'Sem placa informada'}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {locacao.modeloVeiculo || 'Modelo não informado'}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-blue-50 p-3">
+                      <div className="mb-1 flex items-center gap-1 text-sm text-blue-700">
                         <User className="h-4 w-4" />
                         Proprietário
                       </div>
-                      <p className="font-medium text-gray-900">{locacao.proprietario.nome}</p>
-                      <p className="text-xs text-gray-500">{locacao.proprietario.email}</p>
+                      <p className="font-medium text-slate-900">{locacao.proprietario.nome}</p>
+                      <p className="text-xs text-slate-500">{locacao.proprietario.email}</p>
                     </div>
 
-                    {/* Locatário */}
-                    <div className="bg-green-50 p-3 rounded">
-                      <div className="flex items-center gap-1 text-green-600 text-sm mb-1">
+                    <div className="rounded-2xl bg-green-50 p-3">
+                      <div className="mb-1 flex items-center gap-1 text-sm text-green-700">
                         <User className="h-4 w-4" />
                         Locatário
                       </div>
-                      <p className="font-medium text-gray-900">{locacao.locatario.nome}</p>
-                      <p className="text-xs text-gray-500">{locacao.locatario.email}</p>
+                      <p className="font-medium text-slate-900">{locacao.locatario.nome}</p>
+                      <p className="text-xs text-slate-500">{locacao.locatario.email}</p>
                     </div>
 
-                    {/* Período */}
-                    <div className="bg-gray-50 p-3 rounded">
-                      <div className="flex items-center gap-1 text-gray-600 text-sm mb-1">
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="mb-1 flex items-center gap-1 text-sm text-slate-600">
                         <Calendar className="h-4 w-4" />
                         Período
                       </div>
-                      <p className="text-xs text-gray-900">
-                        {formatarData(locacao.dataInicio)}
-                      </p>
-                      <p className="text-xs text-gray-500">até</p>
-                      <p className="text-xs text-gray-900">
-                        {formatarData(locacao.dataFim)}
-                      </p>
+                      <p className="text-xs text-slate-900">{formatarData(locacao.dataInicio)}</p>
+                      <p className="text-xs text-slate-500">até</p>
+                      <p className="text-xs text-slate-900">{formatarData(locacao.dataFim)}</p>
                     </div>
 
-                    {/* Valor */}
-                    <div className="bg-gray-50 p-3 rounded">
-                      <div className="flex items-center gap-1 text-gray-600 text-sm mb-1">
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="mb-1 flex items-center gap-1 text-sm text-slate-600">
                         <DollarSign className="h-4 w-4" />
                         Valor
                       </div>
-                      <p className="font-medium text-gray-900">
-                        R$ {locacao.valor.toFixed(2)}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {locacao.tipoLocacao}
-                      </p>
+                      <p className="font-medium text-slate-900">R$ {locacao.valor.toFixed(2)}</p>
+                      <p className="text-xs uppercase text-slate-500">{locacao.tipoLocacao}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-medium text-slate-900">Últimos eventos</p>
+                    <div className="mt-3 space-y-3">
+                      {locacao.eventos.length === 0 ? (
+                        <p className="text-sm text-slate-500">Nenhum evento recente.</p>
+                      ) : (
+                        locacao.eventos.map((evento) => (
+                          <div
+                            key={evento.id}
+                            className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-100"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium text-slate-900">{evento.titulo}</p>
+                              <span className="text-xs text-slate-400">
+                                {formatarData(evento.criadoEm)}
+                              </span>
+                            </div>
+                            {evento.descricao && (
+                              <p className="mt-1 text-sm text-slate-600">{evento.descricao}</p>
+                            )}
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         )}

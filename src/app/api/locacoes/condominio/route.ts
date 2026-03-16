@@ -6,17 +6,14 @@ import { UsuarioSessao } from '../../../../types';
 
 /**
  * GET /api/locacoes/condominio
- * Listar todas as locações de um condomínio (apenas para síndico/admin)
- * Query: condominioId
+ * Lista locações de um condomínio para monitoramento operacional.
  */
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
     const usuario = session.user as UsuarioSessao;
@@ -24,26 +21,18 @@ export async function GET(request: NextRequest) {
     const condominioId = searchParams.get('condominioId');
 
     if (!condominioId) {
-      return NextResponse.json(
-        { error: 'condominioId é obrigatório' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'condominioId é obrigatório' }, { status: 400 });
     }
 
-    // Verificar permissão: apenas síndico ou admin do condomínio
-    if (!temPermissao(usuario, 'gerenciarReservas', condominioId)) {
-      return NextResponse.json(
-        { error: 'Acesso negado' },
-        { status: 403 }
-      );
+    if (!temPermissao(usuario, 'monitorarLocacoes', condominioId)) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
     }
 
-    // Buscar todas as locações do condomínio
     const locacoes = await prisma.locacao.findMany({
       where: {
         vaga: {
-          condominioId
-        }
+          condominioId,
+        },
       },
       include: {
         vaga: {
@@ -53,45 +42,59 @@ export async function GET(request: NextRequest) {
                 numero: true,
                 torre: {
                   select: {
-                    nome: true
-                  }
-                }
-              }
+                    nome: true,
+                  },
+                },
+              },
             },
             condominio: {
               select: {
-                nome: true
-              }
-            }
-          }
+                id: true,
+                nome: true,
+              },
+            },
+          },
         },
         locatario: {
           select: {
             id: true,
             nome: true,
-            email: true
-          }
+            email: true,
+          },
         },
         proprietario: {
           select: {
             id: true,
             nome: true,
-            email: true
-          }
-        }
+            email: true,
+          },
+        },
+        eventos: {
+          orderBy: {
+            criadoEm: 'desc',
+          },
+          take: 3,
+          select: {
+            id: true,
+            tipo: true,
+            titulo: true,
+            descricao: true,
+            criadoEm: true,
+            usuario: {
+              select: {
+                id: true,
+                nome: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: [
-        { status: 'asc' },
-        { dataInicio: 'desc' }
-      ]
+      orderBy: [{ status: 'asc' }, { dataInicio: 'desc' }],
     });
 
     return NextResponse.json(locacoes);
   } catch (error) {
     console.error('Erro ao buscar locações do condomínio:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

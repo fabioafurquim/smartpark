@@ -87,12 +87,26 @@ export const atualizarVagaSchema = z.object({
 export const criarPerfilUsuarioSchema = z.object({
   usuarioId: z.string().uuid('ID do usuário inválido'),
   condominioId: z.string().uuid('ID do condomínio inválido'),
-  tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador']),
+  tipo: z.enum([
+    'administrador_mestre',
+    'administrador_condominio',
+    'sindico',
+    'porteiro',
+    'morador',
+  ]),
   permissoes: z.record(z.string(), z.boolean()).optional(),
 });
 
 export const atualizarPerfilUsuarioSchema = z.object({
-  tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador']).optional(),
+  tipo: z
+    .enum([
+      'administrador_mestre',
+      'administrador_condominio',
+      'sindico',
+      'porteiro',
+      'morador',
+    ])
+    .optional(),
   permissoes: z.record(z.string(), z.boolean()).optional(),
   ativo: z.boolean().optional(),
 });

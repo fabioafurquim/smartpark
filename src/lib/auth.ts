@@ -86,12 +86,15 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.perfis = (user as any).perfis;
+        token.name = user.name;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
         (session.user as any).id = token.sub!;
+        (session.user as UsuarioSessao).nome =
+          (token.name as string) || session.user.name || '';
         (session.user as UsuarioSessao).perfis = token.perfis as UsuarioSessao['perfis'] || [];
       }
       return session;
@@ -156,6 +159,16 @@ export function ehSindico(usuario: UsuarioSessao, condominioId: string): boolean
 }
 
 /**
+ * Funcao para verificar se o usuario e porteiro
+ * @param usuario - Dados do usuario da sessao
+ * @param condominioId - ID do condominio
+ * @returns boolean
+ */
+export function ehPorteiro(usuario: UsuarioSessao, condominioId: string): boolean {
+  return temPerfil(usuario, 'porteiro', condominioId);
+}
+
+/**
  * Função para verificar se o usuário é morador
  * @param usuario - Dados do usuário da sessão
  * @param condominioId - ID do condomínio
@@ -216,6 +229,7 @@ export function temPermissao(
           'aprovarSolicitacoes',
           'visualizarRelatorios',
           'configurarSistema',
+          'monitorarLocacoes',
         ].includes(permissao);
       
       case 'sindico':
@@ -223,6 +237,13 @@ export function temPermissao(
           'aprovarSolicitacoes',
           'visualizarRelatorios',
           'gerenciarReservas',
+          'monitorarLocacoes',
+        ].includes(permissao);
+
+      case 'porteiro':
+        return [
+          'visualizarPerfil',
+          'monitorarLocacoes',
         ].includes(permissao);
       
       case 'morador':

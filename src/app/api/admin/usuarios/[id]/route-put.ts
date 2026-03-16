@@ -42,7 +42,13 @@ export async function PUT(
       perfis: z.array(
         z.object({
           condominioId: z.string().min(1, 'ID do condomínio é obrigatório'),
-          tipo: z.enum(['administrador_mestre', 'administrador_condominio', 'sindico', 'morador']),
+          tipo: z.enum([
+            'administrador_mestre',
+            'administrador_condominio',
+            'sindico',
+            'porteiro',
+            'morador',
+          ]),
           ativo: z.boolean().optional(),
           permissoes: z.record(z.string(), z.boolean()).optional(),
         })

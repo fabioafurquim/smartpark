@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
 
     if (!codigo) {
       return NextResponse.json(
-        { error: 'Codigo do condominio e obrigatorio' },
+        { error: 'Código do condomínio é obrigatório' },
         { status: 400 }
       );
     }
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     if (!condominio || !condominio.ativo) {
       return NextResponse.json(
-        { error: 'Condominio nao encontrado' },
+        { error: 'Condomínio não encontrado' },
         { status: 404 }
       );
     }
@@ -67,25 +67,26 @@ export async function GET(request: NextRequest) {
       id: condominio.id,
       nome: condominio.nome,
       codigoUnico: condominio.codigoUnico,
-      torres: condominio.torres.map((torre) => ({
-        id: torre.id,
-        nome: torre.nome,
-        tipo: torre.tipo,
-        unidades: torre.unidades.map((unidade) => ({
-          id: unidade.id,
-          numero: unidade.numero,
-          andar: unidade.andar,
-          tipo: unidade.tipo,
-          totalVagas: unidade._count.vagas,
-          disponivelParaVinculo:
-            !unidade.usuarioId && unidade.solicitacoesCadastro.length === 0,
-          statusVinculo: unidade.usuarioId
-            ? 'ocupada'
-            : unidade.solicitacoesCadastro.length > 0
-              ? 'pendente'
-              : 'disponivel',
-        })),
-      })),
+      torres: condominio.torres
+        .map((torre) => ({
+          id: torre.id,
+          nome: torre.nome,
+          tipo: torre.tipo,
+          unidades: torre.unidades
+            .filter(
+              (unidade) => !unidade.usuarioId && unidade.solicitacoesCadastro.length === 0
+            )
+            .map((unidade) => ({
+              id: unidade.id,
+              numero: unidade.numero,
+              andar: unidade.andar,
+              tipo: unidade.tipo,
+              totalVagas: unidade._count.vagas,
+              disponivelParaVinculo: true,
+              statusVinculo: 'disponivel' as const,
+            })),
+        }))
+        .filter((torre) => torre.unidades.length > 0),
     });
   } catch (error) {
     console.error('Erro ao consultar condominio para cadastro:', error);

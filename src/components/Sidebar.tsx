@@ -4,22 +4,22 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { 
-  Home,
+import {
   Building2,
-  Users,
-  UserCheck,
-  Settings,
+  Calendar,
+  Car,
   ChevronDown,
   ChevronRight,
-  Menu,
-  X,
-  Calendar,
+  Home,
   MapPin,
-  Car
+  Menu,
+  Settings,
+  UserCheck,
+  Users,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { temPermissao, ehAdministradorMestre } from '@/lib/auth';
+import { ehAdministradorMestre, temPermissao } from '@/lib/auth';
 import { UsuarioSessao } from '@/types';
 
 interface SidebarProps {
@@ -35,26 +35,30 @@ interface ItemMenu {
   permissaoNecessaria?: string;
   subItens?: ItemMenu[];
   apenasAdminMestre?: boolean;
-  apenasParaSindico?: boolean;
+  apenasParaPerfisOperacionais?: boolean;
 }
 
-/**
- * Componente Sidebar - Menu lateral da aplicação
- */
 export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
-  const [itensExpandidos, setItensExpandidos] = useState<string[]>(['dashboard']);
+  const [itensExpandidos, setItensExpandidos] = useState<string[]>([
+    'dashboard',
+    'administracao',
+    'estrutura',
+  ]);
 
   const usuario = session?.user as UsuarioSessao;
 
-  // Função para verificar se é síndico
-  const ehSindico = (): boolean => {
-    if (!usuario) return false;
-    return usuario.perfis.some(perfil => perfil.tipo === 'sindico');
+  const temPerfilOperacional = () => {
+    if (!usuario) {
+      return false;
+    }
+
+    return usuario.perfis.some((perfil) =>
+      ['administrador_condominio', 'sindico', 'porteiro'].includes(perfil.tipo)
+    );
   };
 
-  // Definição dos itens do menu
   const itensMenu: ItemMenu[] = [
     {
       id: 'dashboard',
@@ -81,12 +85,12 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
           href: '/dashboard/condominios',
         },
         {
-          id: 'admin-reservas',
-          rotulo: 'Reservas Globais',
+          id: 'admin-locacoes',
+          rotulo: 'Monitoramento Global',
           icone: Calendar,
           href: '/reservas-admin',
-        }
-      ]
+        },
+      ],
     },
     {
       id: 'condominios',
@@ -156,25 +160,12 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
       href: '/minhas-vagas',
     },
     {
-      id: 'reservas',
-      rotulo: 'Reservas',
+      id: 'locacoes-condominio',
+      rotulo: 'Monitoramento de Veículos',
       icone: Calendar,
-      permissaoNecessaria: 'gerenciarReservas',
-      subItens: [
-        {
-          id: 'reservas-vaga',
-          rotulo: 'Minhas Reservas',
-          icone: Calendar,
-          href: '/reservas-vaga',
-        },
-        {
-          id: 'reservas-sindico',
-          rotulo: 'Reservas do Condomínio',
-          icone: Calendar,
-          href: '/reservas-sindico',
-          apenasParaSindico: true,
-        },
-      ]
+      permissaoNecessaria: 'monitorarLocacoes',
+      href: '/reservas-sindico',
+      apenasParaPerfisOperacionais: true,
     },
     {
       id: 'solicitacoes',
@@ -189,29 +180,21 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
       icone: Users,
       href: '/dashboard/perfil',
     },
-    {
-      id: 'configuracoes',
-      rotulo: 'Configurações',
-      icone: Settings,
-      href: '/configuracoes',
-    },
   ];
 
-  // Função para verificar se o usuário pode ver o item
-  const podeVerItem = (item: ItemMenu): boolean => {
-    if (!usuario) return false;
+  const podeVerItem = (item: ItemMenu) => {
+    if (!usuario) {
+      return false;
+    }
 
-    // Verificar se é apenas para admin mestre
     if (item.apenasAdminMestre && !ehAdministradorMestre(usuario)) {
       return false;
     }
 
-    // Verificar se é apenas para síndico
-    if (item.apenasParaSindico && !ehSindico()) {
+    if (item.apenasParaPerfisOperacionais && !temPerfilOperacional()) {
       return false;
     }
 
-    // Verificar permissão específica
     if (item.permissaoNecessaria && !temPermissao(usuario, item.permissaoNecessaria)) {
       return false;
     }
@@ -219,77 +202,72 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
     return true;
   };
 
-  // Função para alternar expansão de item
   const alternarExpansao = (itemId: string) => {
-    setItensExpandidos(prev => 
-      prev.includes(itemId)
-        ? prev.filter(id => id !== itemId)
-        : [...prev, itemId]
+    setItensExpandidos((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
     );
   };
 
-  // Função para verificar se o item está ativo
-  const estaAtivo = (href?: string): boolean => {
-    if (!href) return false;
-    return pathname === href || pathname.startsWith(href + '/');
+  const estaAtivo = (href?: string) => {
+    if (!href) {
+      return false;
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  // Renderizar item do menu
   const renderizarItem = (item: ItemMenu, nivel = 0) => {
-    if (!podeVerItem(item)) return null;
+    if (!podeVerItem(item)) {
+      return null;
+    }
 
-    const temSubItens = item.subItens && item.subItens.length > 0;
+    const temSubItens = !!item.subItens?.length;
     const estaExpandido = itensExpandidos.includes(item.id);
     const ativo = estaAtivo(item.href);
 
     return (
       <div key={item.id}>
-        {/* Item principal */}
         {item.href ? (
           <Link
             href={item.href}
             className={cn(
-              'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              'flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors',
               'hover:bg-primary-50 hover:text-primary-700',
               nivel > 0 && 'ml-4',
-              ativo && 'bg-primary-100 text-primary-700 border-r-2 border-primary-600',
+              ativo && 'border-r-2 border-primary-600 bg-primary-100 text-primary-700',
               !ativo && 'text-gray-700'
             )}
           >
-            <item.icone className={cn('w-5 h-5', aberta ? 'mr-3' : 'mx-auto')} />
-            {aberta && (
-              <span className="truncate">{item.rotulo}</span>
-            )}
+            <item.icone className={cn('h-5 w-5', aberta ? 'mr-3' : 'mx-auto')} />
+            {aberta && <span className="truncate">{item.rotulo}</span>}
           </Link>
         ) : (
           <button
             onClick={() => alternarExpansao(item.id)}
             className={cn(
-              'w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              'hover:bg-primary-50 hover:text-primary-700 text-gray-700',
+              'flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors',
+              'hover:bg-primary-50 hover:text-primary-700',
               nivel > 0 && 'ml-4'
             )}
           >
-            <item.icone className={cn('w-5 h-5', aberta ? 'mr-3' : 'mx-auto')} />
+            <item.icone className={cn('h-5 w-5', aberta ? 'mr-3' : 'mx-auto')} />
             {aberta && (
               <>
-                <span className="flex-1 text-left truncate">{item.rotulo}</span>
-                {temSubItens && (
-                  estaExpandido ? (
-                    <ChevronDown className="w-4 h-4" />
+                <span className="flex-1 truncate text-left">{item.rotulo}</span>
+                {temSubItens &&
+                  (estaExpandido ? (
+                    <ChevronDown className="h-4 w-4" />
                   ) : (
-                    <ChevronRight className="w-4 h-4" />
-                  )
-                )}
+                    <ChevronRight className="h-4 w-4" />
+                  ))}
               </>
             )}
           </button>
         )}
 
-        {/* Subitens */}
         {temSubItens && aberta && estaExpandido && (
           <div className="mt-1 space-y-1">
-            {item.subItens!.map(subItem => renderizarItem(subItem, nivel + 1))}
+            {item.subItens!.map((subItem) => renderizarItem(subItem, nivel + 1))}
           </div>
         )}
       </div>
@@ -298,66 +276,60 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
 
   return (
     <>
-      {/* Overlay para mobile */}
       {aberta && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+        <div
+          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
           onClick={aoAlternar}
         />
       )}
 
-      {/* Sidebar */}
-      <div className={cn(
-        'fixed left-0 top-0 h-full bg-white border-r border-gray-200 z-50 transition-all duration-300',
-        aberta ? 'w-64' : 'w-16',
-        'lg:relative lg:translate-x-0',
-        !aberta && '-translate-x-full lg:translate-x-0'
-      )}>
-        {/* Header da sidebar */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div
+        className={cn(
+          'fixed left-0 top-0 z-50 h-full border-r border-gray-200 bg-white transition-all duration-300',
+          aberta ? 'w-64' : 'w-16',
+          'lg:relative lg:translate-x-0',
+          !aberta && '-translate-x-full lg:translate-x-0'
+        )}
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 p-4">
           {aberta && (
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-white" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600">
+                <Building2 className="h-5 w-5 text-white" />
               </div>
               <div>
                 <h2 className="font-semibold text-gray-900">SmartPark</h2>
-                <p className="text-xs text-gray-500">Gestão de Vagas</p>
+                <p className="text-xs text-gray-500">Gestão de vagas</p>
               </div>
             </div>
           )}
-          
-          <button
-            onClick={aoAlternar}
-            className="p-1 rounded-lg hover:bg-gray-100 lg:hidden"
-          >
+
+          <button onClick={aoAlternar} className="rounded-lg p-1 hover:bg-gray-100 lg:hidden">
             {aberta ? (
-              <X className="w-5 h-5 text-gray-500" />
+              <X className="h-5 w-5 text-gray-500" />
             ) : (
-              <Menu className="w-5 h-5 text-gray-500" />
+              <Menu className="h-5 w-5 text-gray-500" />
             )}
           </button>
         </div>
 
-        {/* Menu */}
-        <nav className="p-4 space-y-2 overflow-y-auto h-full pb-20">
-          {itensMenu.map(item => renderizarItem(item))}
+        <nav className="h-full space-y-2 overflow-y-auto p-4 pb-20">
+          {itensMenu.map((item) => renderizarItem(item))}
         </nav>
 
-        {/* Informações do usuário */}
         {aberta && usuario && (
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
+          <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 bg-white p-4">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100">
                 <span className="text-sm font-medium text-primary-700">
                   {usuario?.nome?.charAt(0)?.toUpperCase() || 'U'}
                 </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {usuario?.nome || 'Usuário'}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-gray-900">
+                  {usuario?.nome || 'Usuario'}
                 </p>
-                <p className="text-xs text-gray-500 truncate">
+                <p className="truncate text-xs text-gray-500">
                   {usuario?.email || 'email@exemplo.com'}
                 </p>
               </div>

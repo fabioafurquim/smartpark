@@ -3,7 +3,15 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Building2, CheckCircle, Home, KeyRound, Mail, User } from 'lucide-react';
+import {
+  AlertCircle,
+  Building2,
+  CheckCircle,
+  Home,
+  KeyRound,
+  Mail,
+  User,
+} from 'lucide-react';
 import { Button, Input } from '@/components/ui';
 
 interface UnidadeCadastro {
@@ -54,7 +62,7 @@ export default function CadastroPage() {
 
   const buscarCondominio = async () => {
     if (!codigoCondominio.trim()) {
-      setErro('Informe o codigo do condominio para continuar.');
+      setErro('Informe o código do condomínio para continuar.');
       return;
     }
 
@@ -69,7 +77,7 @@ export default function CadastroPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Nao foi possivel validar o condominio');
+        throw new Error(data.error || 'Não foi possível validar o condomínio');
       }
 
       setCondominio(data);
@@ -79,7 +87,7 @@ export default function CadastroPage() {
       setCondominio(null);
       setTorreId('');
       setUnidadeId('');
-      setErro(error instanceof Error ? error.message : 'Erro ao consultar condominio');
+      setErro(error instanceof Error ? error.message : 'Erro ao consultar condomínio');
     } finally {
       setCarregandoCondominio(false);
     }
@@ -89,7 +97,7 @@ export default function CadastroPage() {
     event.preventDefault();
 
     if (!condominio) {
-      setErro('Valide primeiro o codigo do condominio.');
+      setErro('Valide primeiro o código do condomínio.');
       return;
     }
 
@@ -117,12 +125,10 @@ export default function CadastroPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Nao foi possivel enviar o cadastro');
+        throw new Error(data.error || 'Não foi possível enviar o cadastro');
       }
 
-      router.push(
-        `/login?cadastro=pendente&email=${encodeURIComponent(formulario.email)}`
-      );
+      router.push(`/login?cadastro=pendente&email=${encodeURIComponent(formulario.email)}`);
     } catch (error) {
       setErro(error instanceof Error ? error.message : 'Erro ao enviar cadastro');
     } finally {
@@ -142,7 +148,8 @@ export default function CadastroPage() {
               Solicite seu acesso ao SmartPark
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-gray-600">
-              Informe o codigo do seu condominio, selecione sua unidade e aguarde a aprovacao do sindico ou administrador local.
+              Informe o código do seu condomínio, selecione sua unidade disponível e aguarde a
+              aprovação do síndico ou administrador local.
             </p>
           </div>
 
@@ -150,7 +157,7 @@ export default function CadastroPage() {
             href="/login"
             className="text-sm font-medium text-primary-700 transition-colors hover:text-primary-800"
           >
-            Ja tenho conta
+            Já tenho conta
           </Link>
         </div>
 
@@ -158,7 +165,7 @@ export default function CadastroPage() {
           <div className="rounded-2xl border border-white/70 bg-white/90 p-6 shadow-sm backdrop-blur">
             <div className="mb-6 rounded-2xl border border-primary-100 bg-primary-50/70 p-4">
               <label className="mb-2 block text-sm font-medium text-gray-700">
-                Codigo do condominio
+                Código do condomínio
               </label>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Input
@@ -174,7 +181,7 @@ export default function CadastroPage() {
                   loading={carregandoCondominio}
                   className="sm:min-w-40"
                 >
-                  Validar codigo
+                  Validar código
                 </Button>
               </div>
             </div>
@@ -186,7 +193,7 @@ export default function CadastroPage() {
                   <div>
                     <p className="font-semibold text-green-900">{condominio.nome}</p>
                     <p className="text-sm text-green-700">
-                      Codigo confirmado. Agora escolha sua torre e unidade.
+                      Código confirmado. Agora escolha sua torre e unidade disponível.
                     </p>
                   </div>
                 </div>
@@ -207,7 +214,7 @@ export default function CadastroPage() {
                 />
 
                 <Input
-                  label="Email"
+                  label="E-mail"
                   type="email"
                   value={formulario.email}
                   onChange={(event) =>
@@ -227,7 +234,7 @@ export default function CadastroPage() {
                   setFormulario((atual) => ({ ...atual, senha: event.target.value }))
                 }
                 startIcon={<KeyRound className="h-4 w-4" />}
-                helperText="Minimo de 6 caracteres."
+                helperText="Mínimo de 6 caracteres."
                 fullWidth
                 required
               />
@@ -256,34 +263,40 @@ export default function CadastroPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Unidade
-                  </label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Unidade</label>
                   <select
                     value={unidadeId}
                     onChange={(event) => setUnidadeId(event.target.value)}
-                    disabled={!torreId}
+                    disabled={!torreId || unidades.length === 0}
                     className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
-                    <option value="">Selecione</option>
+                    <option value="">
+                      {torreId
+                        ? unidades.length > 0
+                          ? 'Selecione'
+                          : 'Nenhuma unidade disponível'
+                        : 'Selecione a torre'}
+                    </option>
                     {unidades.map((unidade) => (
-                      <option
-                        key={unidade.id}
-                        value={unidade.id}
-                        disabled={!unidade.disponivelParaVinculo}
-                      >
-                        {`Unidade ${unidade.numero} - ${
-                          unidade.disponivelParaVinculo
-                            ? 'disponivel'
-                            : unidade.statusVinculo === 'pendente'
-                              ? 'com solicitacao pendente'
-                              : 'ja vinculada'
-                        }`}
+                      <option key={unidade.id} value={unidade.id}>
+                        {`Unidade ${unidade.numero} • ${unidade.totalVagas} vaga(s)`}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
+
+              {condominio && condominio.torres.length === 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  No momento não há unidades disponíveis para novo vínculo neste condomínio.
+                </div>
+              )}
+
+              {torreId && unidades.length === 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  Esta torre não possui unidades livres para novo cadastro.
+                </div>
+              )}
 
               {erro && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -295,7 +308,7 @@ export default function CadastroPage() {
               )}
 
               <Button type="submit" loading={enviando} fullWidth size="lg">
-                Enviar solicitacao
+                Enviar solicitação
               </Button>
             </form>
           </div>
@@ -306,16 +319,16 @@ export default function CadastroPage() {
               <h2 className="text-xl font-semibold">Como funciona</h2>
               <div className="mt-5 space-y-4 text-sm text-slate-200">
                 <div>
-                  <p className="font-medium text-white">1. Valide seu condominio</p>
-                  <p>Use o codigo unico recebido do seu condominio.</p>
+                  <p className="font-medium text-white">1. Valide seu condomínio</p>
+                  <p>Use o código único recebido do seu condomínio.</p>
                 </div>
                 <div>
                   <p className="font-medium text-white">2. Escolha sua unidade</p>
-                  <p>Selecione a torre e a unidade que devem ser vinculadas ao seu perfil.</p>
+                  <p>Selecione apenas uma unidade livre para ser vinculada ao seu perfil.</p>
                 </div>
                 <div>
-                  <p className="font-medium text-white">3. Aguarde a aprovacao</p>
-                  <p>O sindico ou administrador local libera seu acesso e suas vagas.</p>
+                  <p className="font-medium text-white">3. Aguarde a aprovação</p>
+                  <p>O síndico ou administrador local libera seu acesso e suas vagas.</p>
                 </div>
               </div>
             </div>
@@ -324,13 +337,13 @@ export default function CadastroPage() {
               <div className="flex items-center gap-3">
                 <Home className="h-6 w-6 text-primary-600" />
                 <h2 className="text-lg font-semibold text-gray-900">
-                  O que voce ganha depois da aprovacao
+                  O que você ganha depois da aprovação
                 </h2>
               </div>
               <ul className="mt-4 space-y-3 text-sm text-gray-600">
-                <li>Visualizar apenas vagas do seu proprio condominio.</li>
-                <li>Publicar as vagas da sua unidade quando quiser disponibiliza-las.</li>
-                <li>Acompanhar solicitacoes, aprovacoes e suas locacoes no app.</li>
+                <li>Visualizar apenas vagas do seu próprio condomínio.</li>
+                <li>Publicar as vagas da sua unidade quando quiser disponibilizá-las.</li>
+                <li>Acompanhar solicitações, aprovações e suas locações no app.</li>
               </ul>
             </div>
           </div>
