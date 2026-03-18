@@ -171,7 +171,7 @@ export default function CadastroPage() {
                 <Input
                   value={codigoCondominio}
                   onChange={(event) => setCodigoCondominio(event.target.value.toUpperCase())}
-                  placeholder="Ex.: COND123"
+                  placeholder="Ex.: A7B9C2"
                   startIcon={<KeyRound className="h-4 w-4" />}
                   fullWidth
                 />

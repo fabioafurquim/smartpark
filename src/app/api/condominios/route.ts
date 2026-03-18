@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { getToken } from 'next-auth/jwt';
 import { UsuarioSessao } from '../../../types';
 import { ehAdministradorMestre, obterCondominiosUsuario } from '../../../lib/auth';
+import { gerarCodigoCondominioUnico } from '../../../lib/condominio-codigo.server';
 
 // GET /api/condominios - Listar condomínios
 export async function GET(request: NextRequest) {
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Gerar código único para o condomínio
-      const codigoUnico = `COND-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      const codigoUnico = await gerarCodigoCondominioUnico();
 
       // Criar condomínio
       const novoCondominio = await prisma.condominio.create({

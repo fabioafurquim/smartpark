@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!condominio || !condominio.ativo) {
-      return NextResponse.json({ error: 'Condomínio não encontrado' }, { status: 404 });
+      return NextResponse.json({ error: 'Condominio nao encontrado' }, { status: 404 });
     }
 
     const unidade = await prisma.unidade.findFirst({
@@ -45,21 +45,21 @@ export async function POST(request: NextRequest) {
 
     if (!unidade) {
       return NextResponse.json(
-        { error: 'Unidade não encontrada para este condomínio' },
+        { error: 'Unidade nao encontrada para este condominio' },
         { status: 404 }
       );
     }
 
     if (unidade.usuarioId) {
       return NextResponse.json(
-        { error: 'Esta unidade já possui um responsável vinculado' },
+        { error: 'Esta unidade ja possui um responsavel vinculado' },
         { status: 409 }
       );
     }
 
     if (unidade.solicitacoesCadastro.length > 0) {
       return NextResponse.json(
-        { error: 'Já existe uma solicitação pendente para esta unidade' },
+        { error: 'Ja existe uma solicitacao pendente para esta unidade' },
         { status: 409 }
       );
     }
@@ -87,14 +87,14 @@ export async function POST(request: NextRequest) {
 
     if (usuarioExistente?.perfis.length) {
       return NextResponse.json(
-        { error: 'Este e-mail já possui acesso ativo ao sistema' },
+        { error: 'Este e-mail ja possui acesso ativo ao sistema' },
         { status: 409 }
       );
     }
 
     if (usuarioExistente?.solicitacoesCadastro.length) {
       return NextResponse.json(
-        { error: 'Já existe uma solicitação pendente para este usuário' },
+        { error: 'Ja existe uma solicitacao pendente para este usuario' },
         { status: 409 }
       );
     }
@@ -137,25 +137,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         sucesso: true,
-        mensagem: 'Solicitação enviada para aprovação do condomínio',
+        mensagem: 'Solicitacao enviada para aprovacao do condominio',
         usuarioId: resultado.usuario.id,
         solicitacaoId: resultado.solicitacao.id,
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error('Erro ao criar solicitação de cadastro:', error);
+    console.error('Erro ao criar solicitacao de cadastro:', error);
 
     if (error instanceof z.ZodError) {
+      const primeiraMensagem = error.issues[0]?.message || 'Dados invalidos';
+
       return NextResponse.json(
         {
-          error: 'Dados inválidos',
+          error: primeiraMensagem,
           details: error.issues,
         },
         { status: 400 }
       );
     }
 
-    return NextResponse.json({ error: 'Não foi possível concluir o cadastro' }, { status: 500 });
+    return NextResponse.json({ error: 'Nao foi possivel concluir o cadastro' }, { status: 500 });
   }
 }
