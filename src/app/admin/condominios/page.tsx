@@ -17,8 +17,10 @@ import {
   Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getModalidadeCondominioLabel, MODALIDADES_CONDOMINIO } from '@/lib/condominio-modalidade';
 import { criarCondominioSchema, type CriarCondominioData } from '@/lib/validations/condominio';
 import { z } from 'zod';
+import { useToast } from '@/components/providers/ToastProvider';
 
 interface Condominio {
   id: string;
@@ -26,6 +28,7 @@ interface Condominio {
   endereco: string;
   telefone?: string;
   email?: string;
+  modalidade: 'EMPRESTIMO' | 'LOCACAO' | 'HIBRIDO';
   totalVagas: number;
   vagasOcupadas: number;
   totalUsuarios: number;
@@ -34,6 +37,7 @@ interface Condominio {
 }
 
 export default function AdminCondominiosPage() {
+  const { showToast } = useToast();
   const [condominios, setCondominios] = useState<Condominio[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState('');
@@ -55,7 +59,8 @@ export default function AdminCondominiosPage() {
     endereco: '',
     telefone: '',
     email: '',
-    logoUrl: ''
+    logoUrl: '',
+    modalidade: 'EMPRESTIMO'
   });
   const [salvando, setSalvando] = useState(false);
   const [errosValidacao, setErrosValidacao] = useState<Record<string, string>>({});
@@ -105,10 +110,15 @@ export default function AdminCondominiosPage() {
           endereco: '',
           telefone: '',
           email: '',
-          logoUrl: ''
+          logoUrl: '',
+          modalidade: 'EMPRESTIMO'
         });
         setErrosValidacao({});
-        alert('Condomínio criado com sucesso!');
+        showToast({
+          title: 'Condominio criado',
+          description: 'O condominio foi cadastrado com sucesso.',
+          variant: 'success',
+        });
       } else {
         const erro = await response.json();
         const detalhes = erro.detalhes ?? erro.details;
@@ -123,7 +133,11 @@ export default function AdminCondominiosPage() {
           });
           setErrosValidacao(novosErros);
         } else {
-          alert(erro.error || erro.erro || 'Erro ao criar condomínio');
+          showToast({
+            title: 'Falha ao criar condominio',
+            description: erro.error || erro.erro || 'Erro ao criar condominio',
+            variant: 'error',
+          });
         }
       }
     } catch (error) {
@@ -140,7 +154,11 @@ export default function AdminCondominiosPage() {
         setErrosValidacao(novosErros);
       } else {
         console.error('Erro ao criar condomínio:', error);
-        alert('Erro ao criar condomínio');
+        showToast({
+          title: 'Falha ao criar condominio',
+          description: 'Erro ao criar condominio',
+          variant: 'error',
+        });
       }
     } finally {
       setSalvando(false);
@@ -174,10 +192,15 @@ export default function AdminCondominiosPage() {
           endereco: '',
           telefone: '',
           email: '',
-          logoUrl: ''
+          logoUrl: '',
+          modalidade: 'EMPRESTIMO'
         });
         setErrosValidacao({});
-        alert('Condomínio atualizado com sucesso!');
+        showToast({
+          title: 'Condominio atualizado',
+          description: 'As informacoes foram atualizadas com sucesso.',
+          variant: 'success',
+        });
       } else {
         const erro = await response.json();
         const detalhes = erro.detalhes ?? erro.details;
@@ -192,7 +215,11 @@ export default function AdminCondominiosPage() {
           });
           setErrosValidacao(novosErros);
         } else {
-          alert(erro.error || erro.erro || 'Erro ao atualizar condomínio');
+          showToast({
+            title: 'Falha ao atualizar condominio',
+            description: erro.error || erro.erro || 'Erro ao atualizar condominio',
+            variant: 'error',
+          });
         }
       }
     } catch (error) {
@@ -209,7 +236,11 @@ export default function AdminCondominiosPage() {
         setErrosValidacao(novosErros);
       } else {
         console.error('Erro ao atualizar condomínio:', error);
-        alert('Erro ao atualizar condomínio');
+        showToast({
+          title: 'Falha ao atualizar condominio',
+          description: 'Erro ao atualizar condominio',
+          variant: 'error',
+        });
       }
     } finally {
       setSalvando(false);
@@ -223,7 +254,8 @@ export default function AdminCondominiosPage() {
       endereco: condominio.endereco,
       telefone: condominio.telefone || '',
       email: condominio.email || '',
-      logoUrl: ''
+      logoUrl: '',
+      modalidade: condominio.modalidade
     });
     setErrosValidacao({});
     setModalEdicao({ aberto: true, condominio });
@@ -241,11 +273,19 @@ export default function AdminCondominiosPage() {
         setModalExclusao({ aberto: false });
       } else {
         const erro = await response.json();
-        alert(erro.error || erro.erro || 'Erro ao excluir condomínio');
+        showToast({
+          title: 'Falha ao excluir condominio',
+          description: erro.error || erro.erro || 'Erro ao excluir condominio',
+          variant: 'error',
+        });
       }
     } catch (error) {
       console.error('Erro ao excluir condomínio:', error);
-      alert('Erro ao excluir condomínio');
+      showToast({
+        title: 'Falha ao excluir condominio',
+        description: 'Erro ao excluir condominio',
+        variant: 'error',
+      });
     }
   };
 
@@ -298,6 +338,9 @@ export default function AdminCondominiosPage() {
                 {condominio.email}
               </div>
             )}
+            <div className="mt-1 text-xs font-medium text-gray-500">
+              {getModalidadeCondominioLabel(condominio.modalidade)}
+            </div>
           </div>
         );
       },
@@ -379,7 +422,7 @@ export default function AdminCondominiosPage() {
     <Layout>
       <div className="space-y-6">
         {/* Cabeçalho */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
               Administração de Condomínios
@@ -488,6 +531,15 @@ export default function AdminCondominiosPage() {
                   {modalDetalhes.condominio.email || 'Não informado'}
                 </p>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Modalidade
+              </label>
+              <p className="mt-1 text-sm text-gray-900">
+                {getModalidadeCondominioLabel(modalDetalhes.condominio.modalidade)}
+              </p>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
@@ -644,6 +696,28 @@ export default function AdminCondominiosPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Modalidade do condominio *
+            </label>
+            <select
+              value={formData.modalidade}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  modalidade: e.target.value as CriarCondominioData['modalidade'],
+                })
+              }
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {MODALIDADES_CONDOMINIO.map((modalidade) => (
+                <option key={modalidade} value={modalidade}>
+                  {getModalidadeCondominioLabel(modalidade)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               URL do Logo (opcional)
             </label>
             <Input
@@ -758,6 +832,28 @@ export default function AdminCondominiosPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Modalidade do condominio *
+            </label>
+            <select
+              value={formData.modalidade}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  modalidade: e.target.value as CriarCondominioData['modalidade'],
+                })
+              }
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {MODALIDADES_CONDOMINIO.map((modalidade) => (
+                <option key={modalidade} value={modalidade}>
+                  {getModalidadeCondominioLabel(modalidade)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               URL do Logo (opcional)
             </label>
             <Input
@@ -797,3 +893,4 @@ export default function AdminCondominiosPage() {
     </Layout>
   );
 }
+

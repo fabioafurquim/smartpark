@@ -1,16 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Building2,
-  Calendar,
-  Car,
-  Clock,
-  DollarSign,
-  ShieldCheck,
-  User,
-} from 'lucide-react';
+import { Building2, Calendar, Car, ShieldCheck, User } from 'lucide-react';
 import { Layout } from '@/components';
+import { useToast } from '@/components/providers/ToastProvider';
 
 interface LocacaoEvento {
   id: string;
@@ -18,10 +11,6 @@ interface LocacaoEvento {
   titulo: string;
   descricao?: string | null;
   criadoEm: string;
-  usuario?: {
-    id: string;
-    nome: string;
-  } | null;
 }
 
 interface Locacao {
@@ -68,11 +57,9 @@ type TipoVisualizacao = 'locatario' | 'proprietario';
 
 const STATUS_OPTIONS = [
   { value: 'TODAS', label: 'Todas' },
-  { value: 'PENDENTE', label: 'Pendentes' },
   { value: 'ATIVA', label: 'Ativas' },
-  { value: 'REJEITADA', label: 'Rejeitadas' },
-  { value: 'CANCELADA', label: 'Canceladas' },
   { value: 'FINALIZADA', label: 'Finalizadas' },
+  { value: 'CANCELADA', label: 'Canceladas' },
 ];
 
 function formatarData(data: string) {
@@ -90,7 +77,7 @@ function getTipoLocacaoLabel(tipo: string) {
     case 'HORA':
       return 'Por hora';
     case 'DIARIA':
-      return 'Diária';
+      return 'Diaria';
     case 'MENSAL':
       return 'Mensal';
     case 'ANUAL':
@@ -102,14 +89,10 @@ function getTipoLocacaoLabel(tipo: string) {
 
 function getStatusBadge(status: string) {
   switch (status) {
-    case 'PENDENTE':
-      return 'bg-yellow-100 text-yellow-800';
     case 'ATIVA':
       return 'bg-green-100 text-green-800';
-    case 'REJEITADA':
-      return 'bg-red-100 text-red-800';
     case 'CANCELADA':
-      return 'bg-slate-100 text-slate-700';
+      return 'bg-red-100 text-red-800';
     case 'FINALIZADA':
       return 'bg-blue-100 text-blue-800';
     default:
@@ -119,37 +102,19 @@ function getStatusBadge(status: string) {
 
 function getStatusLabel(status: string) {
   switch (status) {
-    case 'PENDENTE':
-      return 'Aguardando aprovação';
     case 'ATIVA':
-      return 'Locação ativa';
-    case 'REJEITADA':
-      return 'Solicitação rejeitada';
+      return 'Emprestimo ativo';
     case 'CANCELADA':
-      return 'Locação cancelada';
+      return 'Emprestimo cancelado';
     case 'FINALIZADA':
-      return 'Locação finalizada';
-    default:
-      return status;
-  }
-}
-
-function getStatusPagamentoLabel(status: string) {
-  switch (status) {
-    case 'PENDENTE':
-      return 'Pagamento futuro';
-    case 'CONFIRMADO':
-      return 'Pagamento confirmado';
-    case 'CANCELADO':
-      return 'Pagamento cancelado';
-    case 'REEMBOLSADO':
-      return 'Pagamento reembolsado';
+      return 'Emprestimo finalizado';
     default:
       return status;
   }
 }
 
 export default function MinhasLocacoesPage() {
+  const { showToast } = useToast();
   const [locacoes, setLocacoes] = useState<Locacao[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [atualizandoId, setAtualizandoId] = useState<string | null>(null);
@@ -176,7 +141,7 @@ export default function MinhasLocacoesPage() {
         setLocacoes(dados);
       }
     } catch (error) {
-      console.error('Erro ao carregar locações:', error);
+      console.error('Erro ao carregar emprestimos:', error);
     } finally {
       setCarregando(false);
     }
@@ -186,78 +151,39 @@ export default function MinhasLocacoesPage() {
     void carregarLocacoes();
   }, [carregarLocacoes]);
 
-  const atualizarStatus = async (
-    locacaoId: string,
-    status: 'CANCELADA' | 'FINALIZADA',
-    observacao?: string
-  ) => {
+  const atualizarStatus = async (locacaoId: string, status: 'CANCELADA' | 'FINALIZADA') => {
     setAtualizandoId(locacaoId);
     try {
       const response = await fetch(`/api/locacoes/${locacaoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, observacao }),
+        body: JSON.stringify({
+          status,
+          observacao:
+            status === 'FINALIZADA'
+              ? 'Emprestimo encerrado pelo responsavel da vaga.'
+              : 'Emprestimo cancelado pelo usuario.',
+        }),
       });
+
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        const erro = await response.json();
-        alert(erro.error || 'Não foi possível atualizar a locação.');
-        return;
+        throw new Error(data?.error || 'Nao foi possivel atualizar o emprestimo.');
       }
 
-      void carregarLocacoes();
-    } catch (error) {
-      console.error('Erro ao atualizar locação:', error);
-      alert('Erro ao atualizar a locação.');
-    } finally {
-      setAtualizandoId(null);
-    }
-  };
-
-  const handleAprovar = async (locacaoId: string) => {
-    if (!confirm('Confirma a aprovação desta locação?')) return;
-
-    setAtualizandoId(locacaoId);
-    try {
-      const response = await fetch(`/api/locacoes/${locacaoId}/aprovar`, {
-        method: 'POST',
+      await carregarLocacoes();
+      showToast({
+        title: status === 'FINALIZADA' ? 'Emprestimo finalizado' : 'Emprestimo cancelado',
+        description: 'O status foi atualizado com sucesso.',
+        variant: 'success',
       });
-
-      if (response.ok) {
-        void carregarLocacoes();
-      } else {
-        const erro = await response.json();
-        alert(`Erro ao aprovar: ${erro.error || 'Erro desconhecido'}`);
-      }
     } catch (error) {
-      console.error('Erro ao aprovar locação:', error);
-      alert('Erro ao aprovar locação.');
-    } finally {
-      setAtualizandoId(null);
-    }
-  };
-
-  const handleRejeitar = async (locacaoId: string) => {
-    const motivo = prompt('Informe o motivo da rejeição:');
-    if (!motivo) return;
-
-    setAtualizandoId(locacaoId);
-    try {
-      const response = await fetch(`/api/locacoes/${locacaoId}/rejeitar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ motivo }),
+      showToast({
+        title: 'Falha ao atualizar',
+        description: error instanceof Error ? error.message : 'Erro inesperado.',
+        variant: 'error',
       });
-
-      if (response.ok) {
-        void carregarLocacoes();
-      } else {
-        const erro = await response.json();
-        alert(`Erro ao rejeitar: ${erro.error || 'Erro desconhecido'}`);
-      }
-    } catch (error) {
-      console.error('Erro ao rejeitar locação:', error);
-      alert('Erro ao rejeitar locação.');
     } finally {
       setAtualizandoId(null);
     }
@@ -272,21 +198,12 @@ export default function MinhasLocacoesPage() {
   const estatisticas = useMemo(
     () => ({
       total: locacoes.length,
-      pendentes: locacoes.filter((locacao) => locacao.status === 'PENDENTE').length,
       ativas: locacoes.filter((locacao) => locacao.status === 'ATIVA').length,
       finalizadas: locacoes.filter((locacao) => locacao.status === 'FINALIZADA').length,
+      canceladas: locacoes.filter((locacao) => locacao.status === 'CANCELADA').length,
     }),
     [locacoes]
   );
-
-  const tituloHero =
-    tipoVisualizacao === 'locatario'
-      ? 'Acompanhe as vagas que você alugou'
-      : 'Gerencie os pedidos recebidos nas suas vagas';
-  const subtituloHero =
-    tipoVisualizacao === 'locatario'
-      ? 'Veja etapa atual, veículo, período e o histórico mais recente de cada locação.'
-      : 'Aprove, rejeite, finalize e acompanhe tudo o que acontece com cada vaga publicada.';
 
   return (
     <Layout>
@@ -295,10 +212,12 @@ export default function MinhasLocacoesPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="mb-3 inline-flex items-center rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100">
-                Central de locações
+                Central de emprestimos
               </div>
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Minhas locações</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">{subtituloHero}</p>
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Meus emprestimos</h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
+                Acompanhe o uso das vagas, os veiculos registrados e o historico mais recente.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 self-stretch sm:min-w-[320px]">
@@ -307,8 +226,8 @@ export default function MinhasLocacoesPage() {
                 <p className="mt-1 text-2xl font-bold text-slate-900">{estatisticas.ativas}</p>
               </div>
               <div className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-100">
-                <p className="text-xs text-slate-500">Pendentes</p>
-                <p className="mt-1 text-2xl font-bold text-slate-900">{estatisticas.pendentes}</p>
+                <p className="text-xs text-slate-500">Finalizadas</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">{estatisticas.finalizadas}</p>
               </div>
             </div>
           </div>
@@ -318,10 +237,10 @@ export default function MinhasLocacoesPage() {
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-0.5 h-5 w-5 text-amber-700" />
             <div>
-              <p className="font-medium text-amber-900">Pagamento preparado para a próxima fase</p>
+              <p className="font-medium text-amber-900">Fluxo automatico de uso da vaga</p>
               <p className="mt-1 text-sm text-amber-800">
-                O piloto já guarda o status de pagamento da locação, mas a cobrança ainda acontece
-                fora do app.
+                Quando a vaga esta publicada, o sistema valida conflito de periodo e registra o uso
+                automaticamente.
               </p>
             </div>
           </div>
@@ -339,7 +258,7 @@ export default function MinhasLocacoesPage() {
                 }`}
               >
                 <User className="mr-2 inline h-4 w-4" />
-                Aluguei
+                Usei vagas
               </button>
               <button
                 onClick={() => setTipoVisualizacao('proprietario')}
@@ -354,45 +273,10 @@ export default function MinhasLocacoesPage() {
               </button>
             </div>
 
-            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
-              <Clock className="h-4 w-4 text-slate-500" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-slate-500">Visão atual</p>
-                <p className="truncate text-sm font-medium text-slate-900">{tituloHero}</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">Total</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{estatisticas.total}</p>
-          </div>
-          <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 shadow-sm">
-            <p className="text-xs text-yellow-700">Pendentes</p>
-            <p className="mt-1 text-2xl font-bold text-yellow-900">{estatisticas.pendentes}</p>
-          </div>
-          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 shadow-sm">
-            <p className="text-xs text-green-700">Ativas</p>
-            <p className="mt-1 text-2xl font-bold text-green-900">{estatisticas.ativas}</p>
-          </div>
-          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
-            <p className="text-xs text-blue-700">Finalizadas</p>
-            <p className="mt-1 text-2xl font-bold text-blue-900">{estatisticas.finalizadas}</p>
-          </div>
-        </section>
-
-        <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-900">Filtrar por status</p>
-              <p className="text-xs text-slate-500">Escolha rapidamente o que deseja acompanhar.</p>
-            </div>
             <select
               value={filtroStatus}
               onChange={(event) => setFiltroStatus(event.target.value)}
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-60"
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -403,6 +287,25 @@ export default function MinhasLocacoesPage() {
           </div>
         </section>
 
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs text-slate-500">Total</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{estatisticas.total}</p>
+          </div>
+          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 shadow-sm">
+            <p className="text-xs text-green-700">Ativas</p>
+            <p className="mt-1 text-2xl font-bold text-green-900">{estatisticas.ativas}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+            <p className="text-xs text-blue-700">Finalizadas</p>
+            <p className="mt-1 text-2xl font-bold text-blue-900">{estatisticas.finalizadas}</p>
+          </div>
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
+            <p className="text-xs text-red-700">Canceladas</p>
+            <p className="mt-1 text-2xl font-bold text-red-900">{estatisticas.canceladas}</p>
+          </div>
+        </section>
+
         {carregando ? (
           <div className="flex h-64 items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
@@ -410,11 +313,11 @@ export default function MinhasLocacoesPage() {
         ) : locacoesFiltradas.length === 0 ? (
           <div className="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-sm">
             <Car className="mx-auto mb-4 h-12 w-12 text-slate-300" />
-            <h3 className="text-lg font-semibold text-slate-900">Nenhuma locação encontrada</h3>
+            <h3 className="text-lg font-semibold text-slate-900">Nenhum emprestimo encontrado</h3>
             <p className="mt-2 text-sm text-slate-500">
               {tipoVisualizacao === 'locatario'
-                ? 'Você ainda não alugou nenhuma vaga.'
-                : 'Nenhuma das suas vagas recebeu pedidos neste filtro.'}
+                ? 'Voce ainda nao utilizou nenhuma vaga.'
+                : 'Nenhuma das suas vagas recebeu emprestimos neste filtro.'}
             </p>
           </div>
         ) : (
@@ -436,24 +339,18 @@ export default function MinhasLocacoesPage() {
                         >
                           {getStatusLabel(locacao.status)}
                         </span>
-                        <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                          {getStatusPagamentoLabel(locacao.statusPagamento)}
-                        </span>
                       </div>
                       <h3 className="text-lg font-semibold text-slate-900">
                         {locacao.vaga.condominio.nome}
                       </h3>
                       <p className="text-sm text-slate-600">
-                        {locacao.vaga.unidade.torre.nome} • Unidade {locacao.vaga.unidade.numero}
+                        {locacao.vaga.unidade.torre.nome} - Unidade {locacao.vaga.unidade.numero}
                       </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 px-4 py-3 text-left sm:min-w-[190px]">
-                      <p className="text-xs text-slate-500">Valor</p>
-                      <p className="text-xl font-bold text-emerald-700">
-                        R$ {locacao.valor.toFixed(2)}
-                      </p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500">Modalidade</p>
+                      <p className="text-xl font-bold text-slate-900">
                         {getTipoLocacaoLabel(locacao.tipoLocacao)}
                       </p>
                     </div>
@@ -474,31 +371,31 @@ export default function MinhasLocacoesPage() {
                     <div className="rounded-2xl bg-slate-50 p-4">
                       <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
                         <Calendar className="h-4 w-4" />
-                        Período
+                        Periodo
                       </div>
                       <p className="text-sm font-medium text-slate-900">
                         {formatarData(locacao.dataInicio)}
                       </p>
-                      <p className="text-xs text-slate-500">até {formatarData(locacao.dataFim)}</p>
+                      <p className="text-xs text-slate-500">ate {formatarData(locacao.dataFim)}</p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 p-4">
                       <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
                         <Car className="h-4 w-4" />
-                        Veículo
+                        Veiculo
                       </div>
                       <p className="text-sm font-semibold text-slate-900">
-                        {locacao.placaVeiculo || 'Placa não informada'}
+                        {locacao.placaVeiculo || 'Placa nao informada'}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {locacao.modeloVeiculo || 'Modelo não informado'}
+                        {locacao.modeloVeiculo || 'Modelo nao informado'}
                       </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 p-4">
                       <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
                         <User className="h-4 w-4" />
-                        {tipoVisualizacao === 'locatario' ? 'Proprietário' : 'Locatário'}
+                        {tipoVisualizacao === 'locatario' ? 'Responsavel' : 'Morador'}
                       </div>
                       <p className="text-sm font-medium text-slate-900">
                         {tipoVisualizacao === 'locatario'
@@ -517,12 +414,7 @@ export default function MinhasLocacoesPage() {
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-medium text-slate-900">Trilha recente</p>
-                        <p className="text-xs text-slate-500">
-                          Últimos eventos e sinais do futuro pagamento
-                        </p>
-                      </div>
-                      <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
-                        {getStatusPagamentoLabel(locacao.statusPagamento)}
+                        <p className="text-xs text-slate-500">Ultimos eventos do emprestimo</p>
                       </div>
                     </div>
 
@@ -551,72 +443,31 @@ export default function MinhasLocacoesPage() {
                         ))
                       )}
                     </div>
-
-                    {locacao.pagamentoObservacao && (
-                      <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        <div className="flex items-start gap-2">
-                          <DollarSign className="mt-0.5 h-4 w-4" />
-                          <span>{locacao.pagamentoObservacao}</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-slate-500">
-                      Solicitado em {formatarData(locacao.criadoEm)}
+                      Registrado em {formatarData(locacao.criadoEm)}
                     </p>
 
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      {tipoVisualizacao === 'proprietario' && locacao.status === 'PENDENTE' && (
-                        <>
-                          <button
-                            onClick={() => handleAprovar(locacao.id)}
-                            disabled={atualizandoId === locacao.id}
-                            className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
-                          >
-                            Aprovar pedido
-                          </button>
-                          <button
-                            onClick={() => handleRejeitar(locacao.id)}
-                            disabled={atualizandoId === locacao.id}
-                            className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-                          >
-                            Rejeitar pedido
-                          </button>
-                        </>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {tipoVisualizacao === 'locatario' && locacao.status === 'ATIVA' && (
+                        <button
+                          onClick={() => void atualizarStatus(locacao.id, 'CANCELADA')}
+                          disabled={atualizandoId === locacao.id}
+                          className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          Cancelar emprestimo
+                        </button>
                       )}
-
-                      {tipoVisualizacao === 'locatario' &&
-                        ['PENDENTE', 'ATIVA'].includes(locacao.status) && (
-                          <button
-                            onClick={() =>
-                              atualizarStatus(
-                                locacao.id,
-                                'CANCELADA',
-                                'Cancelamento solicitado pelo morador.'
-                              )
-                            }
-                            disabled={atualizandoId === locacao.id}
-                            className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
-                          >
-                            Cancelar locação
-                          </button>
-                        )}
 
                       {tipoVisualizacao === 'proprietario' && locacao.status === 'ATIVA' && (
                         <button
-                          onClick={() =>
-                            atualizarStatus(
-                              locacao.id,
-                              'FINALIZADA',
-                              'Locação encerrada pelo proprietário.'
-                            )
-                          }
+                          onClick={() => void atualizarStatus(locacao.id, 'FINALIZADA')}
                           disabled={atualizandoId === locacao.id}
                           className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                         >
-                          Finalizar locação
+                          Finalizar emprestimo
                         </button>
                       )}
                     </div>

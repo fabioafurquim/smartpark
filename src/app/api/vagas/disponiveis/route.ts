@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, temPermissao } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { UsuarioSessao } from '@/types';
 
@@ -25,10 +25,15 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const condominioId = searchParams.get('condominioId');
+    const includeOwn = searchParams.get('includeOwn') === 'true';
     const condominioIdsFiltrados =
       condominioId && condominiosUsuario.includes(condominioId)
         ? [condominioId]
         : condominiosUsuario;
+
+    const podeIncluirProprias = includeOwn
+      ? condominioIdsFiltrados.every((id) => temPermissao(usuario, 'gerenciarReservas', id))
+      : false;
 
     const vagas = await prisma.vaga.findMany({
       where: {
@@ -38,9 +43,13 @@ export async function GET(request: NextRequest) {
         proprietarioId: {
           not: null,
         },
-        NOT: {
-          proprietarioId: usuario.id,
-        },
+        ...(podeIncluirProprias
+          ? {}
+          : {
+              NOT: {
+                proprietarioId: usuario.id,
+              },
+            }),
         configuracaoLocacao: {
           disponivel: true,
         },
@@ -64,6 +73,7 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             nome: true,
+            modalidade: true,
           },
         },
         proprietario: {

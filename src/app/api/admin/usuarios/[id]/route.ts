@@ -1,14 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { z } from 'zod';
 import { hash } from 'bcryptjs';
-import { authOptions } from '../../../../../lib/auth';
-import { prisma } from '../../../../../lib/prisma';
-import { ehAdministradorMestre } from '../../../../../lib/auth';
+import { z } from 'zod';
+import { Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { UsuarioSessao } from '@/types';
+import { ehAdministradorMestre, obterCondominiosUsuario } from '@/lib/auth';
+import {
+  atualizarUsuarioAdminSchema,
+  obterCondominiosGerenciaveis,
+  sincronizarVinculosUnidadeDoUsuario,
+  usuarioPodeGerenciarUsuarioAlvo,
+  usuarioPodeGerenciarUsuarios,
+  validarCondominiosExistentes,
+  validarEscopoPerfis,
+  validarUnidadesDosPerfis,
+} from '@/lib/usuarios-admin';
 
 const paramsSchema = z.object({
-  id: z.string().cuid('ID do usuario invalido'),
+  id: z.string().min(1, 'ID do usuario invalido'),
 });
+
+function construirIncludeUsuario(usuario: UsuarioSessao) {
+  const condominiosGerenciaveis = obterCondominiosGerenciaveis(usuario);
+  const filtroEscopo = ehAdministradorMestre(usuario)
+    ? undefined
+    : {
+        condominioId: {
+          in: condominiosGerenciaveis || [],
+        },
+      };
+
+  return {
+    perfis: {
+      where: filtroEscopo,
+      include: {
+        condominio: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+    },
+    unidades: {
+      where: filtroEscopo,
+      select: {
+        id: true,
+        numero: true,
+        condominioId: true,
+        torre: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        condominio: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+      orderBy: [{ condominio: { nome: 'asc' } }, { numero: 'asc' }],
+    },
+  } satisfies Prisma.UsuarioInclude;
+}
+
+async function buscarUsuarioAlvo(id: string) {
+  return prisma.usuario.findUnique({
+    where: { id },
+    include: {
+      perfis: true,
+      unidades: {
+        select: {
+          id: true,
+          condominioId: true,
+        },
+      },
+    },
+  });
+}
 
 export async function GET(
   _request: NextRequest,
@@ -16,118 +90,38 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user || !(session.user as { id?: string }).id) {
       return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
-    if (!ehAdministradorMestre(session.user as any)) {
+    const usuarioSessao = session.user as UsuarioSessao;
+    if (!usuarioPodeGerenciarUsuarios(usuarioSessao)) {
+      return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+    }
+
+    const { id } = paramsSchema.parse(await params);
+    const usuarioAlvo = await buscarUsuarioAlvo(id);
+
+    if (!usuarioAlvo) {
+      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
+    }
+
+    if (!usuarioPodeGerenciarUsuarioAlvo(usuarioSessao, usuarioAlvo.perfis)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem acessar esta funcionalidade.' },
+        { erro: 'Voce nao pode visualizar este usuario' },
         { status: 403 }
       );
     }
 
-    const { id } = paramsSchema.parse(await params);
-
-    const usuario = await prisma.usuario.findUnique({
+    const usuario = await prisma.usuario.findUniqueOrThrow({
       where: { id },
-      include: {
-        perfis: {
-          include: {
-            condominio: {
-              select: {
-                id: true,
-                nome: true,
-              },
-            },
-          },
-        },
-      },
+      include: construirIncludeUsuario(usuarioSessao),
     });
-
-    if (!usuario) {
-      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
-    }
 
     return NextResponse.json(usuario);
   } catch (error) {
     console.error('Erro ao buscar usuario:', error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { erro: 'Parametros invalidos', detalhes: error.issues },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
-
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !(session.user as { id?: string }).id) {
-      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
-    }
-
-    if (!ehAdministradorMestre(session.user as any)) {
-      return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem excluir usuarios.' },
-        { status: 403 }
-      );
-    }
-
-    const { id } = paramsSchema.parse(await params);
-
-    const usuario = await prisma.usuario.findUnique({
-      where: { id },
-      include: {
-        perfis: true,
-      },
-    });
-
-    if (!usuario) {
-      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
-    }
-
-    if (usuario.id === (session.user as { id: string }).id) {
-      return NextResponse.json(
-        { erro: 'Nao e possivel excluir seu proprio usuario' },
-        { status: 400 }
-      );
-    }
-
-    const isAdminMestre = usuario.perfis.some(
-      (perfil) => perfil.tipo === 'administrador_mestre' && perfil.ativo
-    );
-
-    if (isAdminMestre) {
-      const totalAdminsMestre = await prisma.perfilUsuario.count({
-        where: {
-          tipo: 'administrador_mestre',
-          ativo: true,
-        },
-      });
-
-      if (totalAdminsMestre <= 1) {
-        return NextResponse.json(
-          { erro: 'Nao e possivel excluir o ultimo administrador mestre do sistema' },
-          { status: 400 }
-        );
-      }
-    }
-
-    await prisma.usuario.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ mensagem: 'Usuario excluido com sucesso' }, { status: 200 });
-  } catch (error) {
-    console.error('Erro ao excluir usuario:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -146,114 +140,106 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user || !(session.user as { id?: string }).id) {
       return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
-    if (!ehAdministradorMestre(session.user as any)) {
+    const usuarioSessao = session.user as UsuarioSessao;
+    if (!usuarioPodeGerenciarUsuarios(usuarioSessao)) {
+      return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+    }
+
+    const { id } = paramsSchema.parse(await params);
+    const dados = atualizarUsuarioAdminSchema.parse(await request.json());
+    const usuarioAlvo = await buscarUsuarioAlvo(id);
+
+    if (!usuarioAlvo) {
+      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
+    }
+
+    if (!usuarioPodeGerenciarUsuarioAlvo(usuarioSessao, usuarioAlvo.perfis)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem atualizar usuarios.' },
+        { erro: 'Voce nao pode editar este usuario' },
         { status: 403 }
       );
     }
 
-    const { id } = paramsSchema.parse(await params);
-    const dados = await request.json();
-
-    const atualizarUsuarioSchema = z.object({
-      nome: z.string().min(2, 'Nome deve ter ao menos 2 caracteres').optional(),
-      email: z.string().email('Email invalido').optional(),
-      senha: z.string().min(6, 'Senha deve ter ao menos 6 caracteres').optional(),
-      perfis: z
-        .array(
-          z.object({
-            condominioId: z.string().min(1, 'ID do condominio e obrigatorio'),
-            tipo: z.enum([
-              'administrador_mestre',
-              'administrador_condominio',
-              'sindico',
-              'porteiro',
-              'morador',
-            ]),
-            ativo: z.boolean().optional(),
-            permissoes: z.record(z.string(), z.boolean()).optional(),
-          })
-        )
-        .optional(),
-    });
-
-    const dadosValidados = atualizarUsuarioSchema.parse(dados);
-
-    const usuarioExistente = await prisma.usuario.findUnique({
-      where: { id },
-      include: { perfis: true },
-    });
-
-    if (!usuarioExistente) {
-      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
+    if (dados.perfis) {
+      validarEscopoPerfis(usuarioSessao, dados.perfis);
     }
 
-    const dataUpdate: Record<string, unknown> = {};
+    const usuarioAtualizado = await prisma.$transaction(async (tx) => {
+      const dataUpdate: Prisma.UsuarioUpdateInput = {};
 
-    if (dadosValidados.nome) {
-      dataUpdate.nome = dadosValidados.nome;
-    }
+      if (dados.nome) {
+        dataUpdate.nome = dados.nome;
+      }
 
-    if (dadosValidados.email) {
-      dataUpdate.email = dadosValidados.email;
-    }
+      if (dados.email) {
+        dataUpdate.email = dados.email;
+      }
 
-    if (dadosValidados.senha) {
-      dataUpdate.senha = await hash(dadosValidados.senha, 10);
-    }
+      if (dados.senha) {
+        dataUpdate.senha = await hash(dados.senha, 10);
+      }
 
-    const usuarioAtualizado = await prisma.usuario.update({
-      where: { id },
-      data: dataUpdate,
-      include: {
-        perfis: {
-          include: {
-            condominio: {
-              select: { id: true, nome: true },
-            },
-          },
-        },
-      },
-    });
+      if (Object.keys(dataUpdate).length > 0) {
+        await tx.usuario.update({
+          where: { id },
+          data: dataUpdate,
+        });
+      }
 
-    if (dadosValidados.perfis) {
-      await prisma.perfilUsuario.deleteMany({
-        where: { usuarioId: id },
-      });
+      if (dados.perfis) {
+        await validarCondominiosExistentes(tx, dados.perfis);
+        await validarUnidadesDosPerfis(tx, dados.perfis, id);
 
-      await prisma.perfilUsuario.createMany({
-        data: dadosValidados.perfis.map((perfil) => ({
-          usuarioId: id,
-          condominioId: perfil.condominioId,
-          tipo: perfil.tipo,
-          ativo: perfil.ativo ?? true,
-          permissoes: perfil.permissoes ? (perfil.permissoes as any) : undefined,
-        })),
-      });
+        if (ehAdministradorMestre(usuarioSessao)) {
+          await tx.perfilUsuario.deleteMany({
+            where: { usuarioId: id },
+          });
 
-      const usuarioComPerfisAtualizados = await prisma.usuario.findUnique({
-        where: { id },
-        include: {
-          perfis: {
-            include: {
-              condominio: {
-                select: { id: true, nome: true },
+          await tx.perfilUsuario.createMany({
+            data: dados.perfis.map((perfil) => ({
+              usuarioId: id,
+              condominioId: perfil.condominioId,
+              tipo: perfil.tipo,
+              ativo: perfil.ativo ?? true,
+              permissoes: perfil.permissoes ? (perfil.permissoes as Prisma.InputJsonValue) : undefined,
+            })),
+          });
+        } else {
+          const condominiosGerenciaveis = obterCondominiosGerenciaveis(usuarioSessao) || [];
+
+          await tx.perfilUsuario.deleteMany({
+            where: {
+              usuarioId: id,
+              condominioId: {
+                in: condominiosGerenciaveis,
               },
             },
-          },
-        },
-      });
+          });
 
-      return NextResponse.json({
-        mensagem: 'Usuario atualizado com sucesso',
-        usuario: usuarioComPerfisAtualizados,
+          await tx.perfilUsuario.createMany({
+            data: dados.perfis.map((perfil) => ({
+              usuarioId: id,
+              condominioId: perfil.condominioId,
+              tipo: perfil.tipo,
+              ativo: perfil.ativo ?? true,
+              permissoes: perfil.permissoes ? (perfil.permissoes as Prisma.InputJsonValue) : undefined,
+            })),
+          });
+        }
+
+        await sincronizarVinculosUnidadeDoUsuario(tx, id, dados.perfis, usuarioSessao);
+      }
+
+      return tx.usuario.findUniqueOrThrow({
+        where: { id },
+        include: construirIncludeUsuario(usuarioSessao),
       });
-    }
+    });
 
     return NextResponse.json({
       mensagem: 'Usuario atualizado com sucesso',
@@ -269,8 +255,112 @@ export async function PUT(
       );
     }
 
-    if (typeof error === 'object' && error && (error as any).code === 'P2002') {
+    if (error instanceof Error && !('code' in error)) {
+      return NextResponse.json({ erro: error.message }, { status: 400 });
+    }
+
+    if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
       return NextResponse.json({ erro: 'Email ja esta em uso' }, { status: 409 });
+    }
+
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user || !(session.user as { id?: string }).id) {
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
+    }
+
+    const usuarioSessao = session.user as UsuarioSessao;
+    if (!usuarioPodeGerenciarUsuarios(usuarioSessao)) {
+      return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+    }
+
+    const { id } = paramsSchema.parse(await params);
+
+    if (id === usuarioSessao.id) {
+      return NextResponse.json(
+        { erro: 'Nao e possivel excluir seu proprio usuario' },
+        { status: 400 }
+      );
+    }
+
+    const usuarioAlvo = await buscarUsuarioAlvo(id);
+
+    if (!usuarioAlvo) {
+      return NextResponse.json({ erro: 'Usuario nao encontrado' }, { status: 404 });
+    }
+
+    if (!usuarioPodeGerenciarUsuarioAlvo(usuarioSessao, usuarioAlvo.perfis)) {
+      return NextResponse.json(
+        { erro: 'Voce nao pode excluir este usuario' },
+        { status: 403 }
+      );
+    }
+
+    const possuiAdminMestre = usuarioAlvo.perfis.some(
+      (perfil) => perfil.tipo === 'administrador_mestre' && perfil.ativo
+    );
+
+    if (possuiAdminMestre) {
+      const totalAdminsMestre = await prisma.perfilUsuario.count({
+        where: {
+          tipo: 'administrador_mestre',
+          ativo: true,
+        },
+      });
+
+      if (totalAdminsMestre <= 1) {
+        return NextResponse.json(
+          { erro: 'Nao e possivel excluir o ultimo administrador mestre do sistema' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (!ehAdministradorMestre(usuarioSessao)) {
+      const condominiosAlvo = new Set(
+        usuarioAlvo.perfis.map((perfil) => perfil.condominioId)
+      );
+      const condominiosSessao = obterCondominiosUsuario(usuarioSessao);
+      const condominiosGerenciaveis = new Set(
+        (obterCondominiosGerenciaveis(usuarioSessao) || []).concat(
+          condominiosSessao === 'TODOS_CONDOMINIOS'
+            ? []
+            : condominiosSessao.map((condominio) => condominio.id)
+        )
+      );
+
+      for (const condominioId of condominiosAlvo) {
+        if (!condominiosGerenciaveis.has(condominioId)) {
+          return NextResponse.json(
+            { erro: 'Voce nao pode excluir um usuario fora do seu escopo' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
+    await prisma.usuario.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ mensagem: 'Usuario excluido com sucesso' });
+  } catch (error) {
+    console.error('Erro ao excluir usuario:', error);
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { erro: 'Parametros invalidos', detalhes: error.issues },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });

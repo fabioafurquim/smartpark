@@ -104,6 +104,7 @@ export async function GET(request: NextRequest) {
       endereco: condominio.endereco,
       telefone: condominio.telefone,
       email: condominio.email,
+      modalidade: condominio.modalidade,
       totalVagas: condominio._count.vagas,
       vagasOcupadas: condominio.vagas.length,
       totalUsuarios: condominio._count.perfisUsuario,
@@ -172,6 +173,7 @@ export async function POST(request: NextRequest) {
         email: dadosValidados.email || null,
         logoUrl: dadosValidados.logoUrl || null,
         codigoUnico,
+        modalidade: dadosValidados.modalidade,
         ativo: true
       },
       select: {
@@ -180,6 +182,7 @@ export async function POST(request: NextRequest) {
         endereco: true,
         telefone: true,
         email: true,
+        modalidade: true,
         codigoUnico: true,
         logoUrl: true,
         ativo: true,

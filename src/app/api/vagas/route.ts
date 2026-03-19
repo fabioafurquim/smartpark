@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { middlewareEstrutura } from '../../../lib/auth-middleware';
+import { middlewareEstrutura, middlewareEstruturaOperacional } from '../../../lib/auth-middleware';
 
 // Schema de validação para vaga
 const vagaSchema = z.object({
@@ -140,7 +140,7 @@ const formatarVagaListagem = (vaga: VagaListagem) => ({
 });
 
 export async function GET(request: NextRequest) {
-  return middlewareEstrutura(request, async (req, usuario, condominioId) => {
+  return middlewareEstruturaOperacional(request, async (req, usuario, condominioId) => {
     try {
       const { searchParams } = new URL(req.url);
       const unidadeId = searchParams.get('unidadeId');

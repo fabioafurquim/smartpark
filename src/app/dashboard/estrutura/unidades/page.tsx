@@ -5,6 +5,8 @@ import { Home, Plus, Search, Edit, Trash2, Building2, ArrowRightLeft } from 'luc
 import UnidadeModal from '@/components/modals/UnidadeModal';
 import TransferirMoradorModal from '@/components/modals/TransferirMoradorModal';
 import { Layout } from '@/components/Layout';
+import { ConfirmDialog } from '@/components/ui';
+import { useToast } from '@/components/providers/ToastProvider';
 
 interface Unidade {
   id: string;
@@ -65,6 +67,7 @@ const extrairMensagemErro = (errorData: unknown, fallback: string) => {
 };
 
 export default function UnidadesPage() {
+  const { showToast } = useToast();
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [condominios, setCondominios] = useState<Condominio[]>([]);
   const [torres, setTorres] = useState<Torre[]>([]);
@@ -75,6 +78,7 @@ export default function UnidadesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUnidade, setEditingUnidade] = useState<Unidade | null>(null);
   const [transferindoUnidade, setTransferindoUnidade] = useState<Unidade | null>(null);
+  const [unidadeExcluindo, setUnidadeExcluindo] = useState<Unidade | null>(null);
   const [error, setError] = useState<string>('');
 
   const fetchCondominios = useCallback(async () => {
@@ -169,51 +173,86 @@ export default function UnidadesPage() {
       if (response.ok) {
         await fetchUnidades();
         setError('');
+        showToast({
+          title: editingUnidade ? 'Unidade atualizada' : 'Unidade criada',
+          description: editingUnidade
+            ? 'Os dados da unidade foram atualizados com sucesso.'
+            : 'A unidade foi cadastrada com sucesso.',
+          variant: 'success',
+        });
       } else {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Erro ao salvar unidade');
       }
     } catch (error) {
       console.error('Erro ao salvar unidade:', error);
-      setError(error instanceof Error ? error.message : 'Erro ao salvar unidade');
+      const mensagem = error instanceof Error ? error.message : 'Erro ao salvar unidade';
+      setError(mensagem);
+      showToast({
+        title: 'Falha ao salvar unidade',
+        description: mensagem,
+        variant: 'error',
+      });
       throw error;
     }
   };
 
-  const handleDeleteUnidade = async (unidade: Unidade) => {
+  const handleDeleteUnidade = (unidade: Unidade) => {
     if (unidade.usuario || (unidade.totalVagas || 0) > 0) {
-      setError(
+      const mensagem =
         (unidade.totalVagas || 0) > 0
-          ? `A unidade "${unidade.numero}" não pode ser excluída porque ainda possui ${unidade.totalVagas} vaga(s) vinculada(s).`
-          : `A unidade "${unidade.numero}" não pode ser excluída porque ainda possui um morador associado.`
-      );
+          ? `A unidade "${unidade.numero}" nao pode ser excluida porque ainda possui ${unidade.totalVagas} vaga(s) vinculada(s).`
+          : `A unidade "${unidade.numero}" nao pode ser excluida porque ainda possui um morador associado.`;
+      setError(mensagem);
+      showToast({
+        title: 'Exclusao bloqueada',
+        description: mensagem,
+        variant: 'warning',
+      });
       return;
     }
 
-    if (
-      !confirm(
-        `Excluir a unidade "${unidade.numero}"? Esta ação é permanente e pode ser bloqueada caso exista histórico vinculado.`
-      )
-    ) {
+    setUnidadeExcluindo(unidade);
+  };
+
+  const confirmarExclusaoUnidade = async () => {
+    if (!unidadeExcluindo) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/unidades/${unidade.id}`, {
+      const response = await fetch(`/api/unidades/${unidadeExcluindo.id}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
         await fetchUnidades();
         setError('');
+        showToast({
+          title: 'Unidade excluida',
+          description: 'A unidade foi removida com sucesso.',
+          variant: 'success',
+        });
       } else {
         const errorData = await response.json();
         const mensagem = extrairMensagemErro(errorData, 'Erro ao excluir unidade');
         setError(mensagem);
+        showToast({
+          title: 'Falha ao excluir unidade',
+          description: mensagem,
+          variant: 'error',
+        });
       }
     } catch (error) {
       console.error('Erro ao excluir unidade:', error);
       setError('Erro ao excluir unidade');
+      showToast({
+        title: 'Falha ao excluir unidade',
+        description: 'Erro ao excluir unidade.',
+        variant: 'error',
+      });
+    } finally {
+      setUnidadeExcluindo(null);
     }
   };
 
@@ -254,6 +293,16 @@ export default function UnidadesPage() {
     await fetchUnidades();
     setTransferindoUnidade(null);
     setError('');
+    showToast({
+      title: 'Morador transferido',
+      description: 'A unidade e as vagas foram atualizadas com o novo responsavel.',
+      variant: 'success',
+    });
+    showToast({
+      title: 'Morador transferido',
+      description: 'A unidade e as vagas foram atualizadas com o novo responsavel.',
+      variant: 'success',
+    });
   };
 
   const filteredUnidades = unidades.filter(unidade =>
@@ -533,7 +582,20 @@ export default function UnidadesPage() {
         onClose={() => setTransferindoUnidade(null)}
         onTransferir={handleTransferirMorador}
       />
+      <ConfirmDialog
+        aberto={!!unidadeExcluindo}
+        aoFechar={() => setUnidadeExcluindo(null)}
+        aoConfirmar={confirmarExclusaoUnidade}
+        titulo="Excluir unidade"
+        descricao={
+          unidadeExcluindo
+            ? `Voce esta prestes a excluir a unidade "${unidadeExcluindo.numero}". Essa acao e permanente e sera bloqueada caso exista historico operacional vinculado.`
+            : ''
+        }
+        confirmarLabel="Excluir unidade"
+      />
       </div>
     </Layout>
   );
 }
+

@@ -37,7 +37,11 @@ export async function GET(request: NextRequest) {
       condominiosPermitidos = [];
     } else {
       // Usuário comum só vê seus condomínios
-      condominiosPermitidos = obterCondominiosUsuario(usuario).map(c => c.id);
+      const condominiosUsuario = obterCondominiosUsuario(usuario);
+      condominiosPermitidos =
+        condominiosUsuario === 'TODOS_CONDOMINIOS'
+          ? []
+          : condominiosUsuario.map((condominio) => condominio.id);
     }
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
@@ -169,6 +173,7 @@ export async function POST(request: NextRequest) {
           telefone: validatedData.telefone,
           email: validatedData.email,
           codigoUnico,
+          modalidade: validatedData.modalidade,
           ativo: true,
         },
         include: {

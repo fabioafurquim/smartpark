@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
-export default function DashboardNovoCondominioRedirectPage() {
+export default function DashboardEditarCondominioRedirectPage() {
   redirect('/admin/condominios');
 }

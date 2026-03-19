@@ -2,15 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import {
-  AlertCircle,
-  Car,
-  Edit,
-  Loader,
-  MapPin,
-  ShieldCheck,
-  Wallet,
-} from 'lucide-react';
+import { AlertCircle, Car, Edit, Loader, MapPin, ShieldCheck } from 'lucide-react';
 import { Layout } from '@/components';
 import ConfiguracaoLocacaoModal from '@/components/modals/ConfiguracaoLocacaoModal';
 
@@ -25,10 +17,6 @@ interface Vaga {
     id: string;
     disponivel: boolean;
     tiposPermitidos: string[];
-    valorHora?: number;
-    valorDiaria?: number;
-    valorMensal?: number;
-    valorAnual?: number;
   };
 }
 
@@ -38,15 +26,6 @@ interface Unidade {
   andar: number;
   tipo: string;
   vagas: Vaga[];
-}
-
-function resumirValores(vaga: Vaga) {
-  const valores: string[] = [];
-  if (vaga.configuracaoLocacao?.valorHora) valores.push(`R$ ${vaga.configuracaoLocacao.valorHora.toFixed(2)}/h`);
-  if (vaga.configuracaoLocacao?.valorDiaria) valores.push(`R$ ${vaga.configuracaoLocacao.valorDiaria.toFixed(2)}/dia`);
-  if (vaga.configuracaoLocacao?.valorMensal) valores.push(`R$ ${vaga.configuracaoLocacao.valorMensal.toFixed(2)}/mês`);
-  if (vaga.configuracaoLocacao?.valorAnual) valores.push(`R$ ${vaga.configuracaoLocacao.valorAnual.toFixed(2)}/ano`);
-  return valores.join(' • ');
 }
 
 export default function MinhasVagasPage() {
@@ -84,21 +63,6 @@ export default function MinhasVagasPage() {
   useEffect(() => {
     void carregarUnidade();
   }, [carregarUnidade]);
-
-  const abrirModalConfiguracao = (vaga: Vaga) => {
-    setVagaSelecionada(vaga);
-    setIsModalOpen(true);
-  };
-
-  const fecharModal = () => {
-    setIsModalOpen(false);
-    setVagaSelecionada(null);
-  };
-
-  const handleSalvarConfiguracao = async () => {
-    await carregarUnidade();
-    fecharModal();
-  };
 
   const resumo = useMemo(() => {
     if (!unidade) {
@@ -141,7 +105,7 @@ export default function MinhasVagasPage() {
           <Car className="mx-auto mb-4 h-12 w-12 text-blue-400" />
           <h3 className="text-lg font-medium text-blue-900">Nenhuma unidade associada</h3>
           <p className="mt-2 text-sm text-blue-700">
-            Você ainda não possui unidade vinculada. Fale com o síndico ou administrador local.
+            Voce ainda nao possui unidade vinculada. Fale com o sindico ou administrador local.
           </p>
         </div>
       </Layout>
@@ -155,7 +119,7 @@ export default function MinhasVagasPage() {
           <Car className="mx-auto mb-4 h-12 w-12 text-blue-400" />
           <h3 className="text-lg font-medium text-blue-900">Nenhuma vaga cadastrada</h3>
           <p className="mt-2 text-sm text-blue-700">
-            Sua unidade ainda não possui vagas cadastradas no sistema.
+            Sua unidade ainda nao possui vagas cadastradas no sistema.
           </p>
         </div>
       </Layout>
@@ -163,7 +127,7 @@ export default function MinhasVagasPage() {
   }
 
   return (
-    <Layout titulo="Minhas vagas" subtitulo="Publique, pause e ajuste os valores das suas vagas">
+    <Layout titulo="Minhas vagas" subtitulo="Publique e gerencie as vagas da sua unidade">
       <div className="space-y-5">
         <section className="overflow-hidden rounded-[28px] border border-emerald-100 bg-[linear-gradient(135deg,_#ecfdf5_0%,_#ffffff_60%)] p-5 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -173,7 +137,7 @@ export default function MinhasVagasPage() {
               </div>
               <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Minhas vagas</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
-                Escolha quais vagas ficam visíveis para locação e defina as modalidades e valores.
+                Escolha quais vagas ficam visiveis para emprestimo e defina as modalidades de uso.
               </p>
             </div>
 
@@ -190,19 +154,6 @@ export default function MinhasVagasPage() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-amber-200 bg-amber-50 p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <Wallet className="mt-0.5 h-5 w-5 text-amber-700" />
-            <div>
-              <p className="font-medium text-amber-900">Cobrança pelo app virá depois do piloto</p>
-              <p className="mt-1 text-sm text-amber-800">
-                Neste momento você publica a vaga, aprova o pedido e acompanha a ocupação. Em uma
-                próxima etapa, esta tela também vai exibir cobrança e repasse da locação.
-              </p>
-            </div>
-          </div>
-        </section>
-
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs text-slate-500">Tipo</p>
@@ -211,11 +162,11 @@ export default function MinhasVagasPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs text-slate-500">Andar</p>
             <p className="mt-1 text-sm font-semibold text-slate-900">
-              {Number(unidade.andar) === 0 ? 'Térreo' : `${unidade.andar}º`}
+              {Number(unidade.andar) === 0 ? 'Terreo' : `${unidade.andar}o`}
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">Prontas para locação</p>
+            <p className="text-xs text-slate-500">Prontas para emprestimo</p>
             <p className="mt-1 text-sm font-semibold text-emerald-700">{resumo.publicadas}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -242,8 +193,8 @@ export default function MinhasVagasPage() {
                     <h3 className="text-lg font-semibold text-slate-900">{vaga.tipo}</h3>
                     <p className="text-sm text-slate-600">
                       {vaga.configuracaoLocacao?.disponivel
-                        ? 'Publicada para locação'
-                        : 'Ainda não publicada'}
+                        ? 'Publicada para emprestimo'
+                        : 'Ainda nao publicada'}
                     </p>
                   </div>
 
@@ -254,7 +205,7 @@ export default function MinhasVagasPage() {
                         : 'bg-slate-100 text-slate-700'
                     }`}
                   >
-                    {vaga.configuracaoLocacao?.disponivel ? 'Disponível' : 'Indisponível'}
+                    {vaga.configuracaoLocacao?.disponivel ? 'Disponivel' : 'Indisponivel'}
                   </span>
                 </div>
 
@@ -271,28 +222,36 @@ export default function MinhasVagasPage() {
                             key={tipo}
                             className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
                           >
-                            {tipo}
+                            {tipo === 'HORA' && 'Por hora'}
+                            {tipo === 'DIARIA' && 'Diaria'}
+                            {tipo === 'MENSAL' && 'Mensal'}
+                            {tipo === 'ANUAL' && 'Anual'}
                           </span>
                         ))
                       ) : (
-                        <span className="text-sm text-slate-500">Não configuradas</span>
+                        <span className="text-sm text-slate-500">Nao configuradas</span>
                       )}
                     </div>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4 xl:col-span-2">
                     <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
-                      <Wallet className="h-4 w-4" />
-                      Valores atuais
+                      <ShieldCheck className="h-4 w-4" />
+                      Regras atuais
                     </div>
                     <p className="text-sm font-medium text-slate-900">
-                      {resumirValores(vaga) || 'Defina os valores para publicar sua vaga.'}
+                      {vaga.configuracaoLocacao?.tiposPermitidos?.length
+                        ? 'Emprestimo liberado nas modalidades escolhidas.'
+                        : 'Defina as modalidades para publicar sua vaga.'}
                     </p>
                   </div>
                 </div>
 
                 <button
-                  onClick={() => abrirModalConfiguracao(vaga)}
+                  onClick={() => {
+                    setVagaSelecionada(vaga);
+                    setIsModalOpen(true);
+                  }}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-fit sm:min-w-[180px]"
                 >
                   <Edit className="h-4 w-4" />
@@ -307,9 +266,14 @@ export default function MinhasVagasPage() {
       {vagaSelecionada && (
         <ConfiguracaoLocacaoModal
           isOpen={isModalOpen}
-          onClose={fecharModal}
+          onClose={() => {
+            setIsModalOpen(false);
+            setVagaSelecionada(null);
+          }}
           vaga={vagaSelecionada}
-          onSave={handleSalvarConfiguracao}
+          onSave={() => {
+            void carregarUnidade();
+          }}
         />
       )}
     </Layout>

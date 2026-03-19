@@ -21,6 +21,12 @@ enum StatusPagamento {
   REEMBOLSADO
 }
 
+enum ModalidadeCondominio {
+  EMPRESTIMO
+  LOCACAO
+  HIBRIDO
+}
+
 model ConfiguracaoSistema {
   id                             String   @id @default(cuid())
   administradorMestreConfigurado Boolean  @default(false)
@@ -61,10 +67,12 @@ model Condominio {
   email                String?
   codigoUnico          String                @unique
   logoUrl              String?
+  modalidade           ModalidadeCondominio  @default(EMPRESTIMO)
   ativo                Boolean               @default(true)
   criadoEm             DateTime              @default(now())
   atualizadoEm         DateTime              @updatedAt
   perfisUsuario        PerfilUsuario[]
+  configuracoesPermissaoPerfil ConfiguracaoPermissaoPerfil[]
   reservas             Reserva[]
   solicitacoesCadastro SolicitacaoCadastro[]
   torres               Torre[]
@@ -72,6 +80,19 @@ model Condominio {
   vagas                Vaga[]
 
   @@map("condominios")
+}
+
+model ConfiguracaoPermissaoPerfil {
+  id           String     @id @default(cuid())
+  condominioId String
+  tipoPerfil   String
+  permissoes   Json
+  criadoEm     DateTime   @default(now())
+  atualizadoEm DateTime   @updatedAt
+  condominio   Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+
+  @@unique([condominioId, tipoPerfil])
+  @@map("configuracoes_permissao_perfil")
 }
 
 model Torre {

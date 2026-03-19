@@ -61,6 +61,11 @@ export async function GET() {
           },
         },
         eventos: {
+          where: {
+            tipo: {
+              not: 'PAGAMENTO_DESATIVADO_PILOTO',
+            },
+          },
           orderBy: {
             criadoEm: 'desc',
           },

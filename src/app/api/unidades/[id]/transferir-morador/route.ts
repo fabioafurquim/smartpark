@@ -61,7 +61,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unidade nao encontrada' }, { status: 404 });
     }
 
-    if (!temPermissao(usuario, 'gerenciarEstrutura', unidadeDestino.condominioId)) {
+    if (!temPermissao(usuario, 'vincularMoradorUnidade', unidadeDestino.condominioId)) {
       return NextResponse.json(
         { error: 'Acesso negado ao condominio especificado' },
         { status: 403 }

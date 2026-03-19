@@ -29,30 +29,15 @@ export async function registrarEventoLocacao(
 export function getStatusLocacaoLabel(status: string) {
   switch (status) {
     case 'PENDENTE':
-      return 'Aguardando aprovação';
+      return 'Registro pendente';
     case 'ATIVA':
-      return 'Locação ativa';
+      return 'Uso ativo';
     case 'REJEITADA':
-      return 'Solicitação rejeitada';
+      return 'Registro recusado';
     case 'CANCELADA':
-      return 'Locação cancelada';
+      return 'Uso cancelado';
     case 'FINALIZADA':
-      return 'Locação finalizada';
-    default:
-      return status;
-  }
-}
-
-export function getStatusPagamentoLocacaoLabel(status: string) {
-  switch (status) {
-    case 'PENDENTE':
-      return 'Pagamento previsto fora do app';
-    case 'CONFIRMADO':
-      return 'Pagamento confirmado';
-    case 'CANCELADO':
-      return 'Pagamento cancelado';
-    case 'REEMBOLSADO':
-      return 'Pagamento reembolsado';
+      return 'Uso finalizado';
     default:
       return status;
   }

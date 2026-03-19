@@ -9,14 +9,17 @@ import {
   Car,
   CheckCircle,
   Clock,
-  DollarSign,
+  Plus,
   Search,
   ShieldCheck,
   User,
   XCircle,
 } from 'lucide-react';
 import { Layout } from '@/components';
+import { TextActionModal } from '@/components/ui';
 import { UsuarioSessao } from '@/types';
+import { useToast } from '@/components/providers/ToastProvider';
+import { temPermissao } from '@/lib/auth';
 
 interface CondominioOpcao {
   id: string;
@@ -71,6 +74,32 @@ interface Locacao {
   eventos: LocacaoEvento[];
 }
 
+interface MoradorOpcao {
+  id: string;
+  nome: string;
+  email: string;
+}
+
+interface VagaOpcao {
+  id: string;
+  numero: string;
+  proprietario: {
+    id: string;
+    nome: string;
+  };
+  unidade: {
+    numero: string;
+    torre: {
+      nome: string;
+    };
+  };
+  configuracaoLocacao: {
+    tiposPermitidos: string[];
+  };
+}
+
+type TipoEventoPortaria = 'ENTRADA_PORTARIA' | 'SAIDA_PORTARIA' | 'OBSERVACAO_PORTARIA';
+
 const STATUS_OPTIONS = [
   { value: 'ATIVA', label: 'Ativas' },
   { value: 'PENDENTE', label: 'Pendentes' },
@@ -119,24 +148,10 @@ function getStatusIcon(status: string) {
   }
 }
 
-function getStatusPagamentoLabel(status: string) {
-  switch (status) {
-    case 'PENDENTE':
-      return 'Pagamento futuro';
-    case 'CONFIRMADO':
-      return 'Pagamento confirmado';
-    case 'CANCELADO':
-      return 'Pagamento cancelado';
-    case 'REEMBOLSADO':
-      return 'Pagamento reembolsado';
-    default:
-      return status;
-  }
-}
-
 export default function ReservasSindicoPage() {
   const { data: session } = useSession();
   const usuario = session?.user as UsuarioSessao | undefined;
+  const { showToast } = useToast();
 
   const [locacoes, setLocacoes] = useState<Locacao[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -147,6 +162,32 @@ export default function ReservasSindicoPage() {
   const [erro, setErro] = useState('');
   const [acesso, setAcesso] = useState(true);
   const [processandoId, setProcessandoId] = useState<string | null>(null);
+  const [modalEmprestimoAberto, setModalEmprestimoAberto] = useState(false);
+  const [moradores, setMoradores] = useState<MoradorOpcao[]>([]);
+  const [vagasDisponiveis, setVagasDisponiveis] = useState<VagaOpcao[]>([]);
+  const [salvandoEmprestimo, setSalvandoEmprestimo] = useState(false);
+  const [modalEventoPortaria, setModalEventoPortaria] = useState<{
+    aberto: boolean;
+    locacaoId: string;
+    tipo: TipoEventoPortaria;
+    placaVeiculo: string;
+    vagaNumero: string;
+  }>({
+    aberto: false,
+    locacaoId: '',
+    tipo: 'ENTRADA_PORTARIA',
+    placaVeiculo: '',
+    vagaNumero: '',
+  });
+  const [formEmprestimo, setFormEmprestimo] = useState({
+    locatarioId: '',
+    vagaId: '',
+    tipoLocacao: 'DIARIA',
+    dataInicio: '',
+    dataFim: '',
+    placaVeiculo: '',
+    modeloVeiculo: '',
+  });
 
   const perfilPorteiro = useMemo(
     () => usuario?.perfis.some((perfil) => perfil.tipo === 'porteiro') ?? false,
@@ -158,6 +199,20 @@ export default function ReservasSindicoPage() {
         ['sindico', 'administrador_condominio'].includes(perfil.tipo)
       ) ?? false,
     [usuario]
+  );
+  const podeRegistrarEmprestimoManual = useMemo(
+    () =>
+      !!usuario &&
+      !!filtroCondominio &&
+      temPermissao(usuario, 'registrarEmprestimoManual', filtroCondominio),
+    [filtroCondominio, usuario]
+  );
+  const podeRegistrarEventosPortaria = useMemo(
+    () =>
+      !!usuario &&
+      !!filtroCondominio &&
+      temPermissao(usuario, 'registrarEventosPortaria', filtroCondominio),
+    [filtroCondominio, usuario]
   );
 
   useEffect(() => {
@@ -221,19 +276,139 @@ export default function ReservasSindicoPage() {
     void carregarDados();
   }, [carregarDados]);
 
-  const registrarEventoPortaria = async (
-    locacaoId: string,
-    tipo: 'ENTRADA_PORTARIA' | 'SAIDA_PORTARIA' | 'OBSERVACAO_PORTARIA'
-  ) => {
-    const descricao =
-      tipo === 'OBSERVACAO_PORTARIA'
-        ? prompt('Digite a observação da portaria:')
-        : prompt('Deseja registrar um detalhe opcional?');
-
-    if (tipo === 'OBSERVACAO_PORTARIA' && !descricao?.trim()) {
+  const carregarOpcoesEmprestimo = useCallback(async () => {
+    if (!filtroCondominio || !perfilGestorLocal) {
       return;
     }
 
+    const [usuariosResponse, vagasResponse] = await Promise.all([
+      fetch(
+        `/api/admin/usuarios?condominioId=${filtroCondominio}&tipo=morador&ativo=true&limite=200`
+      ),
+      fetch(`/api/vagas/disponiveis?condominioId=${filtroCondominio}&includeOwn=true`),
+    ]);
+
+    if (!usuariosResponse.ok) {
+      throw new Error('Nao foi possivel carregar os moradores do condominio');
+    }
+
+    if (!vagasResponse.ok) {
+      throw new Error('Nao foi possivel carregar as vagas publicadas');
+    }
+
+    const usuariosData = await usuariosResponse.json();
+    const vagasData = await vagasResponse.json();
+
+    setMoradores(
+      (usuariosData.usuarios || []).map((usuarioItem: any) => ({
+        id: usuarioItem.id,
+        nome: usuarioItem.nome,
+        email: usuarioItem.email,
+      }))
+    );
+    setVagasDisponiveis(Array.isArray(vagasData) ? vagasData : []);
+  }, [filtroCondominio, perfilGestorLocal]);
+
+  const abrirModalEmprestimo = async () => {
+    try {
+      await carregarOpcoesEmprestimo();
+      setFormEmprestimo({
+        locatarioId: '',
+        vagaId: '',
+        tipoLocacao: 'DIARIA',
+        dataInicio: '',
+        dataFim: '',
+        placaVeiculo: '',
+        modeloVeiculo: '',
+      });
+      setModalEmprestimoAberto(true);
+    } catch (error) {
+      showToast({
+        title: 'Falha ao preparar registro',
+        description: error instanceof Error ? error.message : 'Erro inesperado.',
+        variant: 'error',
+      });
+    }
+  };
+
+  const vagaSelecionada = useMemo(
+    () => vagasDisponiveis.find((vaga) => vaga.id === formEmprestimo.vagaId) || null,
+    [formEmprestimo.vagaId, vagasDisponiveis]
+  );
+
+  useEffect(() => {
+    if (
+      vagaSelecionada &&
+      !vagaSelecionada.configuracaoLocacao.tiposPermitidos.includes(formEmprestimo.tipoLocacao)
+    ) {
+      setFormEmprestimo((current) => ({
+        ...current,
+        tipoLocacao: vagaSelecionada.configuracaoLocacao.tiposPermitidos[0] || 'DIARIA',
+      }));
+    }
+  }, [formEmprestimo.tipoLocacao, vagaSelecionada]);
+
+  const registrarEmprestimoManual = async () => {
+    if (
+      !formEmprestimo.locatarioId ||
+      !formEmprestimo.vagaId ||
+      !formEmprestimo.dataInicio ||
+      !formEmprestimo.dataFim ||
+      !formEmprestimo.placaVeiculo.trim() ||
+      !formEmprestimo.modeloVeiculo.trim()
+    ) {
+      showToast({
+        title: 'Formulario incompleto',
+        description: 'Preencha morador, vaga, periodo e veiculo antes de salvar.',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    setSalvandoEmprestimo(true);
+    try {
+      const response = await fetch('/api/locacoes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          locatarioId: formEmprestimo.locatarioId,
+          vagaId: formEmprestimo.vagaId,
+          tipoLocacao: formEmprestimo.tipoLocacao,
+          dataInicio: new Date(formEmprestimo.dataInicio).toISOString(),
+          dataFim: new Date(formEmprestimo.dataFim).toISOString(),
+          placaVeiculo: formEmprestimo.placaVeiculo,
+          modeloVeiculo: formEmprestimo.modeloVeiculo,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || 'Nao foi possivel registrar o emprestimo');
+      }
+
+      setModalEmprestimoAberto(false);
+      await carregarDados();
+      showToast({
+        title: 'Emprestimo registrado',
+        description: 'O uso da vaga foi registrado com sucesso no condominio.',
+        variant: 'success',
+      });
+    } catch (error) {
+      showToast({
+        title: 'Falha ao registrar emprestimo',
+        description: error instanceof Error ? error.message : 'Erro inesperado.',
+        variant: 'error',
+      });
+    } finally {
+      setSalvandoEmprestimo(false);
+    }
+  };
+
+  const registrarEventoPortaria = async (
+    locacaoId: string,
+    tipo: TipoEventoPortaria,
+    descricao?: string
+  ) => {
     setProcessandoId(locacaoId);
     try {
       const response = await fetch(`/api/locacoes/${locacaoId}/eventos`, {
@@ -247,18 +422,83 @@ export default function ReservasSindicoPage() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        alert(data?.error || 'Não foi possível registrar o evento.');
+        showToast({
+          title: 'Falha ao registrar evento',
+          description: data?.error || 'Nao foi possivel registrar o evento.',
+          variant: 'error',
+        });
         return;
       }
 
       void carregarDados();
+      showToast({
+        title: 'Evento registrado',
+        description: 'A movimentacao foi salva na trilha da locacao.',
+        variant: 'success',
+      });
+      setModalEventoPortaria({
+        aberto: false,
+        locacaoId: '',
+        tipo: 'ENTRADA_PORTARIA',
+        placaVeiculo: '',
+        vagaNumero: '',
+      });
     } catch (error) {
       console.error('Erro ao registrar evento da portaria:', error);
-      alert('Erro ao registrar o evento da portaria.');
+      showToast({
+        title: 'Falha ao registrar evento',
+        description: 'Erro ao registrar o evento da portaria.',
+        variant: 'error',
+      });
     } finally {
       setProcessandoId(null);
     }
   };
+
+  const abrirModalEventoPortaria = (locacao: Locacao, tipo: TipoEventoPortaria) => {
+    setModalEventoPortaria({
+      aberto: true,
+      locacaoId: locacao.id,
+      tipo,
+      placaVeiculo: locacao.placaVeiculo || 'Sem placa informada',
+      vagaNumero: locacao.vaga.numero,
+    });
+  };
+
+  const configuracaoModalEvento = useMemo(() => {
+    switch (modalEventoPortaria.tipo) {
+      case 'ENTRADA_PORTARIA':
+        return {
+          titulo: 'Registrar entrada',
+          descricao: `Registre a entrada do veiculo ${modalEventoPortaria.placaVeiculo} na vaga ${modalEventoPortaria.vagaNumero}.`,
+          label: 'Detalhe opcional',
+          placeholder: 'Ex.: portao liberado as 18h10.',
+          helperText: 'Use este campo somente se precisar complementar o registro.',
+          confirmarLabel: 'Salvar entrada',
+          obrigatorio: false,
+        };
+      case 'SAIDA_PORTARIA':
+        return {
+          titulo: 'Registrar saida',
+          descricao: `Registre a saida do veiculo ${modalEventoPortaria.placaVeiculo} da vaga ${modalEventoPortaria.vagaNumero}.`,
+          label: 'Detalhe opcional',
+          placeholder: 'Ex.: veiculo saiu acompanhado pelo morador.',
+          helperText: 'Esse detalhe ajuda a manter a trilha da portaria completa.',
+          confirmarLabel: 'Salvar saida',
+          obrigatorio: false,
+        };
+      default:
+        return {
+          titulo: 'Adicionar observacao',
+          descricao: `Escreva uma observacao operacional para a vaga ${modalEventoPortaria.vagaNumero}.`,
+          label: 'Observacao da portaria',
+          placeholder: 'Ex.: visitante informado na guarita para acesso temporario.',
+          helperText: 'Esse campo e obrigatorio para registrar uma observacao manual.',
+          confirmarLabel: 'Salvar observacao',
+          obrigatorio: true,
+        };
+    }
+  }, [modalEventoPortaria]);
 
   const locacoesFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -336,18 +576,30 @@ export default function ReservasSindicoPage() {
               <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
                 {perfilPorteiro && !perfilGestorLocal
                   ? 'Consulte rapidamente placa, modelo, vaga, morador, período e os últimos eventos de cada locação.'
-                  : 'Acompanhe as locações do condomínio com foco em status, veículos, valores e eventos operacionais.'}
+                  : 'Acompanhe os empréstimos do condomínio com foco em status, veículos e eventos operacionais.'}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 lg:min-w-[380px]">
-              <div className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-100">
+            <div className="grid gap-3 lg:min-w-[380px]">
+              {perfilGestorLocal && podeRegistrarEmprestimoManual && (
+                <button
+                  type="button"
+                  onClick={() => void abrirModalEmprestimo()}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Registrar emprestimo
+                </button>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-100">
                 <p className="text-xs text-slate-500">Ativas agora</p>
                 <p className="mt-1 text-2xl font-bold text-emerald-700">{locacoesAtivasAgora}</p>
-              </div>
-              <div className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-100">
-                <p className="text-xs text-slate-500">Entradas hoje</p>
-                <p className="mt-1 text-2xl font-bold text-slate-900">{stats.entradasHoje}</p>
+                </div>
+                <div className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-100">
+                  <p className="text-xs text-slate-500">Entradas hoje</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{stats.entradasHoje}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -431,10 +683,10 @@ export default function ReservasSindicoPage() {
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-700" />
             <div>
-              <p className="font-medium text-blue-900">Rastro pronto para pagamento</p>
+              <p className="font-medium text-blue-900">Registro operacional completo</p>
               <p className="mt-1 text-sm text-blue-800">
-                Cada locação já mostra o estado do pagamento futuro e a trilha de eventos
-                operacionais, preparando o piloto para uma integração financeira posterior.
+                Cada locacao mostra a trilha de eventos operacionais para facilitar o
+                acompanhamento pelo sindico, administrador local e portaria.
               </p>
             </div>
           </div>
@@ -483,9 +735,6 @@ export default function ReservasSindicoPage() {
                         {getStatusIcon(locacao.status)}
                         {locacao.status}
                       </span>
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        {getStatusPagamentoLabel(locacao.statusPagamento)}
-                      </span>
                     </div>
                   </div>
 
@@ -533,11 +782,11 @@ export default function ReservasSindicoPage() {
 
                     <div className="rounded-2xl bg-slate-50 p-4">
                       <div className="mb-1 flex items-center gap-1 text-sm text-slate-600">
-                        <DollarSign className="h-4 w-4" />
-                        Valor
+                        <Calendar className="h-4 w-4" />
+                        Modalidade
                       </div>
-                      <p className="font-medium text-slate-900">R$ {locacao.valor.toFixed(2)}</p>
-                      <p className="text-xs uppercase text-slate-500">{locacao.tipoLocacao}</p>
+                      <p className="font-medium text-slate-900">{locacao.tipoLocacao}</p>
+                      <p className="text-xs text-slate-500">Uso registrado no condominio</p>
                     </div>
                   </div>
 
@@ -575,24 +824,24 @@ export default function ReservasSindicoPage() {
                     </div>
                   </div>
 
-                  {locacao.status === 'ATIVA' && (
+                  {locacao.status === 'ATIVA' && podeRegistrarEventosPortaria && (
                     <div className="grid gap-2 sm:grid-cols-3">
                       <button
-                        onClick={() => registrarEventoPortaria(locacao.id, 'ENTRADA_PORTARIA')}
+                        onClick={() => abrirModalEventoPortaria(locacao, 'ENTRADA_PORTARIA')}
                         disabled={processandoId === locacao.id}
                         className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
                       >
                         Registrar entrada
                       </button>
                       <button
-                        onClick={() => registrarEventoPortaria(locacao.id, 'SAIDA_PORTARIA')}
+                        onClick={() => abrirModalEventoPortaria(locacao, 'SAIDA_PORTARIA')}
                         disabled={processandoId === locacao.id}
                         className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                       >
                         Registrar saída
                       </button>
                       <button
-                        onClick={() => registrarEventoPortaria(locacao.id, 'OBSERVACAO_PORTARIA')}
+                        onClick={() => abrirModalEventoPortaria(locacao, 'OBSERVACAO_PORTARIA')}
                         disabled={processandoId === locacao.id}
                         className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
                       >
@@ -605,6 +854,222 @@ export default function ReservasSindicoPage() {
             ))}
           </div>
         )}
+
+        {modalEmprestimoAberto && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]">
+            <div className="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+              <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[32px] bg-white shadow-2xl sm:rounded-[32px]">
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 sm:hidden" />
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900">Registrar emprestimo manual</h2>
+                      <p className="text-sm text-slate-500">
+                        Para moradores que pedem ajuda ao sindico ou ao administrador.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModalEmprestimoAberto(false)}
+                      className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <span className="sr-only">Fechar</span>
+                      x
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-y-auto px-5 py-5">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Morador</label>
+                      <select
+                        value={formEmprestimo.locatarioId}
+                        onChange={(event) =>
+                          setFormEmprestimo((current) => ({
+                            ...current,
+                            locatarioId: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="">Selecione</option>
+                        {moradores.map((morador) => (
+                          <option key={morador.id} value={morador.id}>
+                            {morador.nome} - {morador.email}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Vaga publicada</label>
+                      <select
+                        value={formEmprestimo.vagaId}
+                        onChange={(event) =>
+                          setFormEmprestimo((current) => ({
+                            ...current,
+                            vagaId: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="">Selecione</option>
+                        {vagasDisponiveis.map((vaga) => (
+                          <option key={vaga.id} value={vaga.id}>
+                            {`${vaga.unidade.torre.nome} - Unidade ${vaga.unidade.numero} - Vaga ${vaga.numero}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Inicio</label>
+                      <input
+                        type="datetime-local"
+                        value={formEmprestimo.dataInicio}
+                        onChange={(event) =>
+                          setFormEmprestimo((current) => ({
+                            ...current,
+                            dataInicio: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Fim</label>
+                      <input
+                        type="datetime-local"
+                        value={formEmprestimo.dataFim}
+                        onChange={(event) =>
+                          setFormEmprestimo((current) => ({
+                            ...current,
+                            dataFim: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Modalidade</label>
+                      <select
+                        value={formEmprestimo.tipoLocacao}
+                        onChange={(event) =>
+                          setFormEmprestimo((current) => ({
+                            ...current,
+                            tipoLocacao: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      >
+                        {(vagaSelecionada?.configuracaoLocacao.tiposPermitidos || ['DIARIA']).map((tipo) => (
+                          <option key={tipo} value={tipo}>
+                            {tipo === 'HORA' && 'Por hora'}
+                            {tipo === 'DIARIA' && 'Diaria'}
+                            {tipo === 'MENSAL' && 'Mensal'}
+                            {tipo === 'ANUAL' && 'Anual'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+                      O registro manual cria o emprestimo imediatamente, desde que a vaga esteja
+                      livre no periodo selecionado.
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Placa do veiculo</label>
+                      <input
+                        value={formEmprestimo.placaVeiculo}
+                        onChange={(event) =>
+                          setFormEmprestimo((current) => ({
+                            ...current,
+                            placaVeiculo: event.target.value.toUpperCase(),
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm uppercase focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        placeholder="ABC1D23"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Modelo do veiculo</label>
+                      <input
+                        value={formEmprestimo.modeloVeiculo}
+                        onChange={(event) =>
+                          setFormEmprestimo((current) => ({
+                            ...current,
+                            modeloVeiculo: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        placeholder="Ex.: Onix prata"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 px-5 py-4">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setModalEmprestimoAberto(false)}
+                      className="h-12 rounded-2xl border border-slate-300 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void registrarEmprestimoManual()}
+                      disabled={salvandoEmprestimo}
+                      className="h-12 rounded-2xl bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {salvandoEmprestimo ? 'Salvando...' : 'Registrar emprestimo'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <TextActionModal
+          aberto={modalEventoPortaria.aberto}
+          aoFechar={() =>
+            setModalEventoPortaria({
+              aberto: false,
+              locacaoId: '',
+              tipo: 'ENTRADA_PORTARIA',
+              placaVeiculo: '',
+              vagaNumero: '',
+            })
+          }
+          aoConfirmar={async (descricao) => {
+            await registrarEventoPortaria(
+              modalEventoPortaria.locacaoId,
+              modalEventoPortaria.tipo,
+              descricao
+            );
+          }}
+          titulo={configuracaoModalEvento.titulo}
+          descricao={configuracaoModalEvento.descricao}
+          label={configuracaoModalEvento.label}
+          placeholder={configuracaoModalEvento.placeholder}
+          helperText={configuracaoModalEvento.helperText}
+          confirmarLabel={configuracaoModalEvento.confirmarLabel}
+          obrigatorio={configuracaoModalEvento.obrigatorio}
+          loading={processandoId === modalEventoPortaria.locacaoId}
+        />
       </div>
     </Layout>
   );

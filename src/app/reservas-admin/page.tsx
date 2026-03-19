@@ -8,7 +8,6 @@ import {
   Car,
   CheckCircle,
   Clock,
-  DollarSign,
   Search,
   User,
   XCircle,
@@ -103,21 +102,6 @@ function getStatusIcon(status: string) {
       return <CheckCircle className="h-4 w-4" />;
     default:
       return null;
-  }
-}
-
-function getStatusPagamentoLabel(status: string) {
-  switch (status) {
-    case 'PENDENTE':
-      return 'Pagamento futuro';
-    case 'CONFIRMADO':
-      return 'Pagamento confirmado';
-    case 'CANCELADO':
-      return 'Pagamento cancelado';
-    case 'REEMBOLSADO':
-      return 'Pagamento reembolsado';
-    default:
-      return status;
   }
 }
 
@@ -236,7 +220,7 @@ export default function ReservasAdminPage() {
                 Monitoramento global
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
-                Acompanhe veículos, valores, status e a trilha operacional das locações em todos os
+                Acompanhe veículos, status e a trilha operacional dos empréstimos em todos os
                 condomínios.
               </p>
             </div>
@@ -359,9 +343,6 @@ export default function ReservasAdminPage() {
                         {getStatusIcon(locacao.status)}
                         {locacao.status}
                       </span>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        {getStatusPagamentoLabel(locacao.statusPagamento)}
-                      </span>
                     </div>
                   </div>
 
@@ -409,11 +390,11 @@ export default function ReservasAdminPage() {
 
                     <div className="rounded-2xl bg-slate-50 p-3">
                       <div className="mb-1 flex items-center gap-1 text-sm text-slate-600">
-                        <DollarSign className="h-4 w-4" />
-                        Valor
+                        <Calendar className="h-4 w-4" />
+                        Modalidade
                       </div>
-                      <p className="font-medium text-slate-900">R$ {locacao.valor.toFixed(2)}</p>
-                      <p className="text-xs uppercase text-slate-500">{locacao.tipoLocacao}</p>
+                      <p className="font-medium text-slate-900">{locacao.tipoLocacao}</p>
+                      <p className="text-xs text-slate-500">Uso registrado no condominio</p>
                     </div>
                   </div>
 

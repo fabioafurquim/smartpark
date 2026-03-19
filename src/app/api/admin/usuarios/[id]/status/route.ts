@@ -6,7 +6,7 @@ import { prisma } from '../../../../../../lib/prisma';
 import { ehAdministradorMestre } from '../../../../../../lib/auth';
 
 const paramsSchema = z.object({
-  id: z.string().cuid('ID do usuario invalido'),
+  id: z.string().min(1, 'ID do usuario invalido'),
 });
 
 const bodySchema = z.object({

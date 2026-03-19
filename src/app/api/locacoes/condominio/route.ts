@@ -70,6 +70,11 @@ export async function GET(request: NextRequest) {
           },
         },
         eventos: {
+          where: {
+            tipo: {
+              not: 'PAGAMENTO_DESATIVADO_PILOTO',
+            },
+          },
           orderBy: {
             criadoEm: 'desc',
           },

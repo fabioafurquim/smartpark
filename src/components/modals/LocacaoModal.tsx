@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Calendar, CarFront, Clock, DollarSign, X } from 'lucide-react';
-import { calcularValorLocacao } from '@/lib/locacao-utils';
+import { useEffect, useState } from 'react';
+import { Calendar, CarFront, Clock, ShieldCheck, X } from 'lucide-react';
+import { useToast } from '@/components/providers/ToastProvider';
 
 interface Vaga {
   id: string;
@@ -22,10 +22,6 @@ interface Vaga {
   };
   configuracaoLocacao: {
     tiposPermitidos: string[];
-    valorHora: number | null;
-    valorDiaria: number | null;
-    valorMensal: number | null;
-    valorAnual: number | null;
   };
 }
 
@@ -42,6 +38,7 @@ export default function LocacaoModal({
   vaga,
   onSuccess,
 }: LocacaoModalProps) {
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     dataInicio: '',
     dataFim: '',
@@ -63,30 +60,6 @@ export default function LocacaoModal({
     setErro('');
   }, [vaga]);
 
-  const valorCalculado = useMemo(() => {
-    if (!formData.dataInicio || !formData.dataFim) {
-      return null;
-    }
-
-    const dataInicio = new Date(formData.dataInicio);
-    const dataFim = new Date(formData.dataFim);
-
-    if (
-      Number.isNaN(dataInicio.getTime()) ||
-      Number.isNaN(dataFim.getTime()) ||
-      dataInicio >= dataFim
-    ) {
-      return null;
-    }
-
-    return calcularValorLocacao(
-      formData.tipoLocacao as 'HORA' | 'DIARIA' | 'MENSAL' | 'ANUAL',
-      dataInicio,
-      dataFim,
-      vaga.configuracaoLocacao
-    );
-  }, [formData.dataFim, formData.dataInicio, formData.tipoLocacao, vaga.configuracaoLocacao]);
-
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setErro('');
@@ -94,19 +67,22 @@ export default function LocacaoModal({
 
   const validarFormulario = () => {
     if (!formData.dataInicio) {
-      setErro('Data de início é obrigatória.');
+      setErro('Informe o inicio do emprestimo.');
       return false;
     }
+
     if (!formData.dataFim) {
-      setErro('Data de fim é obrigatória.');
+      setErro('Informe o fim do emprestimo.');
       return false;
     }
-    if (!formData.placaVeiculo) {
-      setErro('Informe a placa do veículo.');
+
+    if (!formData.placaVeiculo.trim()) {
+      setErro('Informe a placa do veiculo.');
       return false;
     }
-    if (!formData.modeloVeiculo) {
-      setErro('Informe o modelo do veículo.');
+
+    if (!formData.modeloVeiculo.trim()) {
+      setErro('Informe o modelo do veiculo.');
       return false;
     }
 
@@ -114,20 +90,15 @@ export default function LocacaoModal({
     const dataFim = new Date(formData.dataFim);
 
     if (dataInicio >= dataFim) {
-      setErro('A data de início precisa ser anterior à data de fim.');
-      return false;
-    }
-
-    if (valorCalculado == null) {
-      setErro('Não foi possível calcular o valor para esse período.');
+      setErro('A data de inicio precisa ser anterior a data de fim.');
       return false;
     }
 
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
     if (!validarFormulario()) {
       return;
@@ -150,22 +121,31 @@ export default function LocacaoModal({
         }),
       });
 
-      if (response.ok) {
-        alert('Solicitação enviada com sucesso. Agora ela aguarda a aprovação do proprietário.');
-        onSuccess();
-      } else {
-        const data = await response.json();
-        setErro(data.details || data.error || 'Erro ao criar locação');
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setErro(data?.error || 'Nao foi possivel registrar o emprestimo.');
+        return;
       }
+
+      showToast({
+        title: 'Emprestimo confirmado',
+        description:
+          'O uso da vaga foi registrado no sistema e o morador responsavel foi avisado.',
+        variant: 'success',
+      });
+      onSuccess();
     } catch (error) {
-      console.error('Erro ao criar locação:', error);
-      setErro('Erro ao criar locação');
+      console.error('Erro ao criar emprestimo:', error);
+      setErro('Erro ao registrar o emprestimo.');
     } finally {
       setCarregando(false);
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]">
@@ -175,9 +155,9 @@ export default function LocacaoModal({
             <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 sm:hidden" />
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Solicitar locação</h2>
+                <h2 className="text-xl font-bold text-slate-900">Registrar emprestimo</h2>
                 <p className="text-sm text-slate-500">
-                  Valor calculado automaticamente pelo sistema
+                  A vaga fica reservada automaticamente para o periodo informado.
                 </p>
               </div>
               <button
@@ -195,25 +175,20 @@ export default function LocacaoModal({
                 <p className="text-sm text-slate-600">Vaga selecionada</p>
                 <p className="mt-1 text-xl font-bold text-slate-900">Vaga {vaga.numero}</p>
                 <p className="text-sm text-slate-600">
-                  {vaga.unidade.torre.nome} • Unidade {vaga.unidade.numero}
+                  {vaga.unidade.torre.nome} - Unidade {vaga.unidade.numero}
                 </p>
                 <p className="mt-2 text-xs text-slate-500">{vaga.condominio.nome}</p>
                 <p className="mt-3 text-sm text-slate-600">
-                  Morador responsável:{' '}
+                  Morador responsavel:{' '}
                   <span className="font-medium text-slate-900">{vaga.proprietario.nome}</span>
                 </p>
-              </div>
-
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                O pagamento pelo app ainda não está ativo neste piloto. Por enquanto, o SmartPark
-                registra pedido, aprovação e ocupação da vaga.
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
                     <Clock className="mr-1 inline h-4 w-4" />
-                    Modalidade
+                    Modalidade do uso
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {vaga.configuracaoLocacao.tiposPermitidos.map((tipo) => (
@@ -228,7 +203,7 @@ export default function LocacaoModal({
                         }`}
                       >
                         {tipo === 'HORA' && 'Por hora'}
-                        {tipo === 'DIARIA' && 'Diária'}
+                        {tipo === 'DIARIA' && 'Diaria'}
                         {tipo === 'MENSAL' && 'Mensal'}
                         {tipo === 'ANUAL' && 'Anual'}
                       </button>
@@ -240,7 +215,7 @@ export default function LocacaoModal({
                   <div>
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       <Calendar className="mr-1 inline h-4 w-4" />
-                      Início
+                      Inicio
                     </label>
                     <input
                       type="datetime-local"
@@ -268,7 +243,7 @@ export default function LocacaoModal({
                   <div>
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       <CarFront className="mr-1 inline h-4 w-4" />
-                      Placa do veículo
+                      Placa do veiculo
                     </label>
                     <input
                       type="text"
@@ -281,7 +256,7 @@ export default function LocacaoModal({
 
                   <div>
                     <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Modelo do veículo
+                      Modelo do veiculo
                     </label>
                     <input
                       type="text"
@@ -295,14 +270,12 @@ export default function LocacaoModal({
 
                 <div className="rounded-[28px] border border-blue-100 bg-blue-50 p-4">
                   <div className="flex items-center gap-2 text-sm text-blue-900">
-                    <DollarSign className="h-4 w-4" />
-                    Valor estimado da solicitação
+                    <ShieldCheck className="h-4 w-4" />
+                    Registro automatico do emprestimo
                   </div>
-                  <p className="mt-2 text-3xl font-bold text-blue-950">
-                    {valorCalculado != null ? `R$ ${valorCalculado.toFixed(2)}` : 'Preencha o período'}
-                  </p>
-                  <p className="mt-1 text-xs text-blue-700">
-                    O valor final segue a modalidade e os valores publicados pelo proprietário.
+                  <p className="mt-2 text-sm text-blue-800">
+                    O sistema valida conflito de horario, identifica o veiculo e registra a
+                    ocupacao da vaga para acompanhamento do condominio.
                   </p>
                 </div>
 
@@ -325,7 +298,7 @@ export default function LocacaoModal({
                     disabled={carregando}
                     className="h-12 rounded-2xl bg-blue-600 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {carregando ? 'Enviando...' : 'Solicitar locação'}
+                    {carregando ? 'Registrando...' : 'Confirmar emprestimo'}
                   </button>
                 </div>
               </form>

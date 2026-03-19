@@ -1,114 +1,172 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../lib/auth';
-import { prisma } from '../../../../lib/prisma';
-import { ehAdministradorMestre } from '../../../../lib/auth';
-import { z } from 'zod';
 import { hash } from 'bcryptjs';
+import { Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import {
+  criarUsuarioAdminSchema,
+  filtrosAdminUsuariosSchema,
+  obterCondominiosGerenciaveis,
+  sincronizarVinculosUnidadeDoUsuario,
+  usuarioPodeGerenciarUsuarios,
+  validarCondominiosExistentes,
+  validarEscopoPerfis,
+  validarUnidadesDosPerfis,
+} from '@/lib/usuarios-admin';
+import { UsuarioSessao } from '@/types';
+import { ehAdministradorMestre } from '@/lib/auth';
+import { z } from 'zod';
 
-const filtrosSchema = z.object({
-  busca: z.string().optional(),
-  tipo: z
-    .enum([
-      'administrador_mestre',
-      'administrador_condominio',
-      'sindico',
-      'porteiro',
-      'morador',
-    ])
-    .optional(),
-  ativo: z.enum(['true', 'false']).optional(),
-  pagina: z.coerce.number().min(1).default(1),
-  limite: z.coerce.number().min(1).max(100).default(20),
-});
+function construirWhereUsuarios(
+  usuario: UsuarioSessao,
+  filtros: z.infer<typeof filtrosAdminUsuariosSchema>
+): Prisma.UsuarioWhereInput {
+  const where: Prisma.UsuarioWhereInput = {};
+  const condominiosGerenciaveis = obterCondominiosGerenciaveis(usuario);
 
-/**
- * GET /api/admin/usuarios
- * Lista todos os usuários do sistema (apenas para administrador mestre)
- */
+  const and: Prisma.UsuarioWhereInput[] = [];
+
+  if (filtros.busca) {
+    and.push({
+      OR: [
+        { nome: { contains: filtros.busca, mode: 'insensitive' } },
+        { email: { contains: filtros.busca, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  const perfisWhere: Prisma.PerfilUsuarioWhereInput = {};
+
+  if (!ehAdministradorMestre(usuario)) {
+    perfisWhere.condominioId = { in: condominiosGerenciaveis || [] };
+  }
+
+  if (filtros.condominioId) {
+    perfisWhere.condominioId = filtros.condominioId;
+  }
+
+  if (filtros.tipo) {
+    perfisWhere.tipo = filtros.tipo;
+  }
+
+  if (filtros.ativo !== undefined) {
+    perfisWhere.ativo = filtros.ativo === 'true';
+  }
+
+  if (Object.keys(perfisWhere).length > 0) {
+    and.push({
+      perfis: {
+        some: perfisWhere,
+      },
+    });
+  }
+
+  if (and.length > 0) {
+    where.AND = and;
+  }
+
+  return where;
+}
+
+function construirIncludeUsuarios(usuario: UsuarioSessao) {
+  const condominiosGerenciaveis = obterCondominiosGerenciaveis(usuario);
+  const filtroEscopo = ehAdministradorMestre(usuario)
+    ? undefined
+    : {
+        condominioId: {
+          in: condominiosGerenciaveis || [],
+        },
+      };
+
+  return {
+    perfis: {
+      where: filtroEscopo,
+      include: {
+        condominio: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+    },
+    unidades: {
+      where: filtroEscopo,
+      select: {
+        id: true,
+        numero: true,
+        condominioId: true,
+        torre: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        condominio: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+      orderBy: [{ condominio: { nome: 'asc' } }, { numero: 'asc' }],
+    },
+  } satisfies Prisma.UsuarioInclude;
+}
+
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
-    if (!session?.user || !(session.user as any).id) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
+
+    if (!session?.user || !(session.user as { id?: string }).id) {
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
-    if (!ehAdministradorMestre(session.user as any)) {
+    const usuario = session.user as UsuarioSessao;
+
+    if (!usuarioPodeGerenciarUsuarios(usuario)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem acessar esta funcionalidade.' },
+        { erro: 'Acesso negado. Voce nao pode gerenciar usuarios.' },
         { status: 403 }
       );
     }
 
-    // Validar parâmetros de consulta
     const { searchParams } = new URL(request.url);
-    const filtrosValidados = filtrosSchema.parse({
+    const filtros = filtrosAdminUsuariosSchema.parse({
       busca: searchParams.get('busca') || undefined,
       tipo: searchParams.get('tipo') || undefined,
       ativo: searchParams.get('ativo') || undefined,
+      condominioId: searchParams.get('condominioId') || undefined,
       pagina: searchParams.get('pagina') || undefined,
       limite: searchParams.get('limite') || undefined,
     });
 
-    // Construir filtros para o Prisma
-    const where: any = {};
-    
-    if (filtrosValidados.busca) {
-      where.OR = [
-        { nome: { contains: filtrosValidados.busca, mode: 'insensitive' } },
-        { email: { contains: filtrosValidados.busca, mode: 'insensitive' } },
-      ];
+    const condominiosGerenciaveis = obterCondominiosGerenciaveis(usuario);
+    if (
+      filtros.condominioId &&
+      !ehAdministradorMestre(usuario) &&
+      !condominiosGerenciaveis?.includes(filtros.condominioId)
+    ) {
+      return NextResponse.json(
+        { erro: 'Voce nao pode consultar usuarios deste condominio' },
+        { status: 403 }
+      );
     }
 
-    // Filtro por tipo de perfil
-    if (filtrosValidados.tipo) {
-      where.perfis = {
-        some: {
-          tipo: {
-            equals: filtrosValidados.tipo,
-            mode: 'insensitive',
-          },
-        },
-      };
-    }
+    const where = construirWhereUsuarios(usuario, filtros);
+    const include = construirIncludeUsuarios(usuario);
 
-    // Filtro por status ativo
-    if (filtrosValidados.ativo !== undefined) {
-      const ativo = filtrosValidados.ativo === 'true';
-      where.perfis = {
-        ...where.perfis,
-        some: {
-          ...where.perfis?.some,
-          ativo,
-        },
-      };
-    }
-
-    // Buscar usuários com paginação
     const [usuarios, total] = await Promise.all([
       prisma.usuario.findMany({
         where,
-        include: {
-          perfis: {
-            include: {
-              condominio: {
-                select: {
-                  id: true,
-                  nome: true,
-                },
-              },
-            },
-          },
-        },
+        include,
         orderBy: {
           nome: 'asc',
         },
-        skip: (filtrosValidados.pagina - 1) * filtrosValidados.limite,
-        take: filtrosValidados.limite,
+        skip: (filtros.pagina - 1) * filtros.limite,
+        take: filtros.limite,
       }),
       prisma.usuario.count({ where }),
     ]);
@@ -116,139 +174,98 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       usuarios,
       total,
-      pagina: filtrosValidados.pagina,
-      limite: filtrosValidados.limite,
+      pagina: filtros.pagina,
+      limite: filtros.limite,
     });
   } catch (error) {
-    console.error('Erro ao buscar usuários:', error);
-    
+    console.error('Erro ao buscar usuarios:', error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Parâmetros inválidos', detalhes: error.issues },
+        { erro: 'Parametros invalidos', detalhes: error.issues },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(
-      { erro: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
-/**
- * POST /api/admin/usuarios
- * Cria um novo usuário (apenas para administrador mestre)
- */
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
-    if (!session?.user || !(session.user as any).id) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
+
+    if (!session?.user || !(session.user as { id?: string }).id) {
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
-    if (!ehAdministradorMestre(session.user as any)) {
+    const usuario = session.user as UsuarioSessao;
+
+    if (!usuarioPodeGerenciarUsuarios(usuario)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem criar usuários.' },
+        { erro: 'Acesso negado. Voce nao pode criar usuarios.' },
         { status: 403 }
       );
     }
 
-    const dados = await request.json();
+    const dados = criarUsuarioAdminSchema.parse(await request.json());
+    validarEscopoPerfis(usuario, dados.perfis);
 
-    // Schema de validação para criação de usuário
-    const criarUsuarioSchema = z.object({
-      nome: z.string().min(2, 'Nome deve ter ao menos 2 caracteres'),
-      email: z.string().email('Email inválido'),
-      senha: z.string().min(6, 'Senha deve ter ao menos 6 caracteres'),
-      perfis: z.array(
-        z.object({
-          condominioId: z.string().min(1, 'ID do condomínio é obrigatório'),
-          tipo: z.enum([
-            'administrador_mestre',
-            'administrador_condominio',
-            'sindico',
-            'porteiro',
-            'morador',
-          ]),
-          ativo: z.boolean().optional(),
-          permissoes: z.record(z.string(), z.boolean()).optional(),
-        })
-      ).min(1, 'Ao menos um perfil deve ser informado'),
-    });
+    const usuarioCriado = await prisma.$transaction(async (tx) => {
+      await validarCondominiosExistentes(tx, dados.perfis);
+      await validarUnidadesDosPerfis(tx, dados.perfis);
 
-    const dadosValidados = criarUsuarioSchema.parse(dados);
+      const senhaHash = await hash(dados.senha, 10);
 
-    // Verificar existência dos condomínios informados nos perfis
-    const condominioIds = Array.from(new Set(dadosValidados.perfis.map(p => p.condominioId)));
-    const condominios = await prisma.condominio.findMany({
-      where: { id: { in: condominioIds } },
-      select: { id: true }
-    });
-    const encontrados = new Set(condominios.map(c => c.id));
-    const naoEncontrados = condominioIds.filter(id => !encontrados.has(id));
-    if (naoEncontrados.length > 0) {
-      return NextResponse.json(
-        { erro: 'Condomínio(s) inválido(s)', detalhes: naoEncontrados },
-        { status: 400 }
-      );
-    }
-
-    // Hash da senha
-    const senhaHash = await hash(dadosValidados.senha, 10);
-
-    // Criar usuário com perfis
-    const usuarioCriado = await prisma.usuario.create({
-      data: {
-        nome: dadosValidados.nome,
-        email: dadosValidados.email,
-        senha: senhaHash,
-        perfis: {
-          create: dadosValidados.perfis.map((p) => ({
-            condominioId: p.condominioId,
-            tipo: p.tipo,
-            ativo: p.ativo ?? true,
-            permissoes: p.permissoes ? (p.permissoes as any) : undefined,
-          })),
+      const novoUsuario = await tx.usuario.create({
+        data: {
+          nome: dados.nome,
+          email: dados.email,
+          senha: senhaHash,
+          perfis: {
+            create: dados.perfis.map((perfil) => ({
+              condominioId: perfil.condominioId,
+              tipo: perfil.tipo,
+              ativo: perfil.ativo ?? true,
+              permissoes: perfil.permissoes ? (perfil.permissoes as Prisma.InputJsonValue) : undefined,
+            })),
+          },
         },
-      },
-      include: {
-        perfis: {
-          include: {
-            condominio: {
-              select: { id: true, nome: true }
-            }
-          }
-        }
-      }
+      });
+
+      await sincronizarVinculosUnidadeDoUsuario(tx, novoUsuario.id, dados.perfis, usuario);
+
+      return tx.usuario.findUniqueOrThrow({
+        where: { id: novoUsuario.id },
+        include: construirIncludeUsuarios(usuario),
+      });
     });
 
-    return NextResponse.json({
-      mensagem: 'Usuário criado com sucesso',
-      usuario: usuarioCriado,
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        mensagem: 'Usuario criado com sucesso',
+        usuario: usuarioCriado,
+      },
+      { status: 201 }
+    );
   } catch (error) {
-    console.error('Erro ao criar usuário:', error);
-    // Tratar erro de email duplicado
+    console.error('Erro ao criar usuario:', error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Dados inválidos', detalhes: error.issues },
+        { erro: 'Dados invalidos', detalhes: error.issues },
         { status: 400 }
       );
     }
-    if (typeof error === 'object' && error && (error as any).code === 'P2002') {
-      return NextResponse.json(
-        { erro: 'Email já está em uso' },
-        { status: 409 }
-      );
+
+    if (error instanceof Error && !('code' in error)) {
+      return NextResponse.json({ erro: error.message }, { status: 400 });
     }
-    return NextResponse.json(
-      { erro: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+
+    if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json({ erro: 'Email ja esta em uso' }, { status: 409 });
+    }
+
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
   }
 }

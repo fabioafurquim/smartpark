@@ -1,4 +1,5 @@
 // Tipos principais do sistema SmartPark
+import type { PermissaoSistema } from '@/lib/permissoes';
 
 export interface Usuario {
   id: string;
@@ -80,7 +81,7 @@ export interface PerfilUsuario {
   usuarioId: string;
   condominioId: string;
   tipo: TipoPerfilUsuario;
-  permissoes?: Record<string, boolean>;
+  permissoes?: Partial<Record<PermissaoSistema, boolean>>;
   ativo: boolean;
   criadoEm: Date;
   atualizadoEm: Date;
@@ -280,6 +281,7 @@ export interface UsuarioSessao {
       nome: string;
       codigoUnico: string;
     };
+    permissoes?: Partial<Record<PermissaoSistema, boolean>>;
   }[];
 }
 
@@ -311,10 +313,18 @@ export interface Permissoes {
   gerenciarCondominios: boolean;
   gerenciarUsuarios: boolean;
   gerenciarEstrutura: boolean;
+  vincularMoradorUnidade: boolean;
+  vincularVagaUnidade: boolean;
+  configurarVagasLocacao: boolean;
   aprovarSolicitacoes: boolean;
+  gerenciarReservas: boolean;
+  registrarEmprestimoManual: boolean;
   visualizarRelatorios: boolean;
   configurarSistema: boolean;
   monitorarLocacoes: boolean;
+  registrarEventosPortaria: boolean;
+  gerenciarPermissoesPerfis: boolean;
+  visualizarPerfil: boolean;
 }
 
 // Tipos para filtros e busca

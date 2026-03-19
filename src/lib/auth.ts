@@ -1,13 +1,69 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import { prisma } from './prisma';
 import { compare } from 'bcryptjs';
+import { prisma } from './prisma';
 import { UsuarioSessao } from '../types';
+import {
+  combinarPermissoesPerfil,
+  obterPermissoesPadraoPerfil,
+  type MapaPermissoes,
+  type PermissaoSistema,
+} from './permissoes';
 
-/**
- * Configuração do NextAuth.js para autenticação
- */
+export async function carregarPerfisSessao(usuarioId: string): Promise<UsuarioSessao['perfis']> {
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: usuarioId },
+    include: {
+      perfis: {
+        where: { ativo: true },
+        include: {
+          condominio: {
+            select: {
+              id: true,
+              nome: true,
+              codigoUnico: true,
+              configuracoesPermissaoPerfil: {
+                select: {
+                  tipoPerfil: true,
+                  permissoes: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!usuario) {
+    return [];
+  }
+
+  return usuario.perfis.map((perfil) => {
+    const configuracaoPerfil = perfil.condominio.configuracoesPermissaoPerfil.find(
+      (configuracao) => configuracao.tipoPerfil === perfil.tipo
+    );
+
+    return {
+      id: perfil.id,
+      tipo: perfil.tipo as UsuarioSessao['perfis'][number]['tipo'],
+      condominioId: perfil.condominioId,
+      permissoes: combinarPermissoesPerfil(
+        perfil.tipo as UsuarioSessao['perfis'][number]['tipo'],
+        (configuracaoPerfil?.permissoes as Partial<Record<PermissaoSistema, boolean>> | null) ??
+          null,
+        (perfil.permissoes as Partial<Record<PermissaoSistema, boolean>> | null) ?? null
+      ),
+      condominio: {
+        id: perfil.condominio.id,
+        nome: perfil.condominio.nome,
+        codigoUnico: perfil.condominio.codigoUnico,
+      },
+    };
+  });
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -23,56 +79,27 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // Buscar usuário no banco de dados
           const usuario = await prisma.usuario.findUnique({
             where: { email: credentials.email },
-            include: {
-              perfis: {
-                where: { ativo: true },
-                include: {
-                  condominio: {
-                    select: {
-                      id: true,
-                      nome: true,
-                      codigoUnico: true,
-                    },
-                  },
-                },
-              },
-            },
           });
 
-          if (!usuario || !usuario.ativo) {
+          if (!usuario || !usuario.ativo || !usuario.senha) {
             return null;
           }
 
-          // Verificar senha usando bcrypt
-          if (!usuario.senha) {
-            return null;
-          }
-          
           const senhaValida = await compare(credentials.senha, usuario.senha);
           if (!senhaValida) {
             return null;
           }
 
-          // Retornar dados do usuário para a sessão
           return {
             id: usuario.id,
             name: usuario.nome,
             email: usuario.email,
-            perfis: usuario.perfis.map(perfil => ({
-              id: perfil.id,
-              tipo: perfil.tipo,
-              condominioId: perfil.condominioId,
-              condominio: perfil.condominio ? {
-                id: perfil.condominio.id,
-                nome: perfil.condominio.nome
-              } : null,
-            })),
+            perfis: await carregarPerfisSessao(usuario.id),
           };
         } catch (error) {
-          console.error('Erro na autenticação:', error);
+          console.error('Erro na autenticacao:', error);
           return null;
         }
       },
@@ -80,23 +107,29 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 dias
+    maxAge: 30 * 24 * 60 * 60,
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.perfis = (user as any).perfis;
         token.name = user.name;
       }
+
+      if (token.sub) {
+        token.perfis = await carregarPerfisSessao(token.sub);
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id = token.sub!;
+        (session.user as any).id = token.sub || '';
         (session.user as UsuarioSessao).nome =
           (token.name as string) || session.user.name || '';
-        (session.user as UsuarioSessao).perfis = token.perfis as UsuarioSessao['perfis'] || [];
+        (session.user as UsuarioSessao).perfis =
+          (token.perfis as UsuarioSessao['perfis']) || [];
       }
+
       return session;
     },
   },
@@ -107,40 +140,22 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
 };
 
-/**
- * Função para verificar se o usuário tem um perfil específico
- * @param usuario - Dados do usuário da sessão
- * @param tipoPerfil - Tipo de perfil a verificar
- * @param condominioId - ID do condomínio (opcional)
- * @returns boolean
- */
 export function temPerfil(
   usuario: UsuarioSessao,
   tipoPerfil: string,
   condominioId?: string
 ): boolean {
-  return usuario.perfis.some(perfil => {
+  return usuario.perfis.some((perfil) => {
     const tipoCorreto = perfil.tipo === tipoPerfil;
     const condominioCorreto = !condominioId || perfil.condominioId === condominioId;
     return tipoCorreto && condominioCorreto;
   });
 }
 
-/**
- * Função para verificar se o usuário é administrador mestre
- * @param usuario - Dados do usuário da sessão
- * @returns boolean
- */
 export function ehAdministradorMestre(usuario: UsuarioSessao): boolean {
   return temPerfil(usuario, 'administrador_mestre');
 }
 
-/**
- * Função para verificar se o usuário é administrador de condomínio
- * @param usuario - Dados do usuário da sessão
- * @param condominioId - ID do condomínio
- * @returns boolean
- */
 export function ehAdministradorCondominio(
   usuario: UsuarioSessao,
   condominioId: string
@@ -158,116 +173,45 @@ export function ehAdministradorLocal(
   });
 }
 
-/**
- * Função para verificar se o usuário é síndico
- * @param usuario - Dados do usuário da sessão
- * @param condominioId - ID do condomínio
- * @returns boolean
- */
 export function ehSindico(usuario: UsuarioSessao, condominioId: string): boolean {
   return temPerfil(usuario, 'sindico', condominioId);
 }
 
-/**
- * Funcao para verificar se o usuario e porteiro
- * @param usuario - Dados do usuario da sessao
- * @param condominioId - ID do condominio
- * @returns boolean
- */
 export function ehPorteiro(usuario: UsuarioSessao, condominioId: string): boolean {
   return temPerfil(usuario, 'porteiro', condominioId);
 }
 
-/**
- * Função para verificar se o usuário é morador
- * @param usuario - Dados do usuário da sessão
- * @param condominioId - ID do condomínio
- * @returns boolean
- */
 export function ehMorador(usuario: UsuarioSessao, condominioId: string): boolean {
   return temPerfil(usuario, 'morador', condominioId);
 }
 
-/**
- * Função para obter condomínios do usuário
- * @param usuario - Dados do usuário da sessão
- * @returns Array de condomínios ou Promise<Array> para administrador mestre
- */
 export function obterCondominiosUsuario(usuario: UsuarioSessao) {
-  // Administrador mestre tem acesso a todos os condomínios
   if (ehAdministradorMestre(usuario)) {
-    // Para administrador mestre, retornamos uma função que busca todos os condomínios
-    // Isso será tratado de forma especial na API
-    return 'TODOS_CONDOMINIOS' as any;
+    return 'TODOS_CONDOMINIOS' as const;
   }
-  
-  return usuario.perfis.map(perfil => perfil.condominio);
+
+  return usuario.perfis.map((perfil) => perfil.condominio);
 }
 
-/**
- * Função para verificar permissões específicas
- * @param usuario - Dados do usuário da sessão
- * @param permissao - Nome da permissão
- * @param condominioId - ID do condomínio (opcional)
- * @returns boolean
- */
 export function temPermissao(
   usuario: UsuarioSessao,
-  permissao: string,
+  permissao: PermissaoSistema | string,
   condominioId?: string
 ): boolean {
-  // Administrador mestre tem todas as permissões
   if (ehAdministradorMestre(usuario)) {
     return true;
   }
 
-  // Verificar permissões específicas do perfil
-  return usuario.perfis.some(perfil => {
+  return usuario.perfis.some((perfil) => {
     const condominioCorreto = !condominioId || perfil.condominioId === condominioId;
-    if (!condominioCorreto) return false;
-
-    // Definir permissões por tipo de perfil
-    switch (perfil.tipo) {
-      case 'administrador_mestre':
-        // Administrador mestre tem todas as permissões
-        return true;
-        
-      case 'administrador_condominio':
-        return [
-          'gerenciarUsuarios',
-          'gerenciarEstrutura',
-          'aprovarSolicitacoes',
-          'visualizarRelatorios',
-          'configurarSistema',
-          'gerenciarReservas',
-          'monitorarLocacoes',
-        ].includes(permissao);
-      
-      case 'sindico':
-        return [
-          'gerenciarUsuarios',
-          'gerenciarEstrutura',
-          'aprovarSolicitacoes',
-          'visualizarRelatorios',
-          'gerenciarReservas',
-          'monitorarLocacoes',
-          'configurarSistema',
-        ].includes(permissao);
-
-      case 'porteiro':
-        return [
-          'visualizarPerfil',
-          'monitorarLocacoes',
-        ].includes(permissao);
-      
-      case 'morador':
-        return [
-          'visualizarPerfil',
-          'gerenciarReservas',
-        ].includes(permissao);
-      
-      default:
-        return false;
+    if (!condominioCorreto) {
+      return false;
     }
+
+    const permissoesPerfil =
+      perfil.permissoes ||
+      obterPermissoesPadraoPerfil(perfil.tipo as UsuarioSessao['perfis'][number]['tipo']);
+
+    return !!permissoesPerfil[permissao as keyof MapaPermissoes];
   });
 }

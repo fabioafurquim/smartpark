@@ -16,6 +16,8 @@ export { Separator } from './separator';
 // Componentes legados - manter compatibilidade
 export { Modal, ModalFooter } from './Modal';
 export type { ModalProps } from './Modal';
+export { ConfirmDialog } from './ConfirmDialog';
+export { TextActionModal } from './TextActionModal';
 
 export { Table, StatusBadge } from './Table';
 export type { ColunaTabela, PropsTabela } from './Table';

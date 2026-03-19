@@ -52,7 +52,7 @@ export async function POST(
       return NextResponse.json({ error: 'Locação não encontrada' }, { status: 404 });
     }
 
-    if (!temPermissao(usuario, 'monitorarLocacoes', locacao.vaga.condominioId)) {
+    if (!temPermissao(usuario, 'registrarEventosPortaria', locacao.vaga.condominioId)) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
     }
 

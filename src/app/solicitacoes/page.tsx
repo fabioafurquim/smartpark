@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Layout } from '@/components';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, TextActionModal } from '@/components/ui';
 import { AlertCircle, Building2, CheckCircle2, Clock3, Search, UserRound, XCircle } from 'lucide-react';
+import { useToast } from '@/components/providers/ToastProvider';
 
 interface SolicitacaoItem {
   id: string;
@@ -43,12 +44,22 @@ interface RespostaSolicitacoes {
 }
 
 export default function SolicitacoesPage() {
+  const { showToast } = useToast();
   const [dados, setDados] = useState<RespostaSolicitacoes | null>(null);
   const [statusFiltro, setStatusFiltro] = useState<'pendente' | 'aprovado' | 'rejeitado' | 'todas'>('pendente');
   const [busca, setBusca] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [processandoId, setProcessandoId] = useState('');
   const [erro, setErro] = useState('');
+  const [modalRejeicao, setModalRejeicao] = useState<{
+    aberto: boolean;
+    solicitacaoId: string;
+    nome: string;
+  }>({
+    aberto: false,
+    solicitacaoId: '',
+    nome: '',
+  });
 
   const carregarSolicitacoes = useCallback(async () => {
     try {
@@ -81,13 +92,9 @@ export default function SolicitacoesPage() {
 
   const processarSolicitacao = async (
     solicitacaoId: string,
-    status: 'aprovado' | 'rejeitado'
+    status: 'aprovado' | 'rejeitado',
+    observacoes = ''
   ) => {
-    const observacoes =
-      status === 'rejeitado'
-        ? window.prompt('Informe o motivo da rejeicao (opcional):') || ''
-        : '';
-
     try {
       setProcessandoId(solicitacaoId);
       const response = await fetch(`/api/solicitacoes-cadastro/${solicitacaoId}`, {
@@ -108,8 +115,24 @@ export default function SolicitacoesPage() {
       }
 
       await carregarSolicitacoes();
+      showToast({
+        title: status === 'aprovado' ? 'Vinculo aprovado' : 'Solicitacao rejeitada',
+        description:
+          status === 'aprovado'
+            ? 'O morador ja pode acessar o sistema com a unidade liberada.'
+            : 'A solicitacao foi encerrada com a observacao registrada.',
+        variant: status === 'aprovado' ? 'success' : 'info',
+      });
+      setModalRejeicao({ aberto: false, solicitacaoId: '', nome: '' });
     } catch (error) {
-      setErro(error instanceof Error ? error.message : 'Erro ao processar solicitacao');
+      const mensagem =
+        error instanceof Error ? error.message : 'Erro ao processar solicitacao';
+      setErro(mensagem);
+      showToast({
+        title: 'Falha ao processar solicitacao',
+        description: mensagem,
+        variant: 'error',
+      });
     } finally {
       setProcessandoId('');
     }
@@ -246,7 +269,13 @@ export default function SolicitacoesPage() {
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={() => void processarSolicitacao(solicitacao.id, 'rejeitado')}
+                        onClick={() =>
+                          setModalRejeicao({
+                            aberto: true,
+                            solicitacaoId: solicitacao.id,
+                            nome: solicitacao.usuario.nome,
+                          })
+                        }
                         disabled={processandoId === solicitacao.id}
                         className="justify-center border-red-200 text-red-700 hover:bg-red-50"
                       >
@@ -264,6 +293,21 @@ export default function SolicitacoesPage() {
             Nenhuma solicitacao encontrada para os filtros atuais.
           </div>
         )}
+
+        <TextActionModal
+          aberto={modalRejeicao.aberto}
+          aoFechar={() => setModalRejeicao({ aberto: false, solicitacaoId: '', nome: '' })}
+          aoConfirmar={async (observacoes) => {
+            await processarSolicitacao(modalRejeicao.solicitacaoId, 'rejeitado', observacoes);
+          }}
+          titulo="Rejeitar solicitacao"
+          descricao={`Informe um motivo opcional para registrar por que o vinculo de ${modalRejeicao.nome || 'este morador'} nao foi aprovado.`}
+          label="Motivo da rejeicao"
+          placeholder="Ex.: unidade informada nao corresponde ao cadastro do condominio."
+          helperText="Essa observacao fica visivel no historico da solicitacao."
+          confirmarLabel="Rejeitar solicitacao"
+          loading={processandoId === modalRejeicao.solicitacaoId}
+        />
       </div>
     </Layout>
   );

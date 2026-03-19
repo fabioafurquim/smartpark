@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowRightLeft, Car, Edit, Plus, Trash2 } from 'lucide-react';
 import { Layout } from '@/components';
-import { Button } from '@/components/ui';
+import { Button, ConfirmDialog } from '@/components/ui';
+import { useToast } from '@/components/providers/ToastProvider';
 import TransferirVagaModal from '@/components/modals/TransferirVagaModal';
 import VagaModal from '@/components/modals/VagaModal';
 
@@ -55,6 +56,7 @@ const extrairMensagemErro = (errorData: unknown, fallback: string) => {
 };
 
 export default function VagasPage() {
+  const { showToast } = useToast();
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [, setSalvando] = useState(false);
@@ -65,6 +67,7 @@ export default function VagasPage() {
   const [modalAberto, setModalAberto] = useState(false);
   const [vagaEditando, setVagaEditando] = useState<Vaga | null>(null);
   const [vagaTransferindo, setVagaTransferindo] = useState<Vaga | null>(null);
+  const [vagaExcluindo, setVagaExcluindo] = useState<Vaga | null>(null);
 
   const carregarCondominios = useCallback(async () => {
     try {
@@ -119,7 +122,11 @@ export default function VagasPage() {
       const condominioId = dadosVaga.condominioId ?? condominioSelecionado;
 
       if (!condominioId) {
-        alert('Selecione um condominio antes de salvar a vaga.');
+        showToast({
+          title: 'Condominio obrigatorio',
+          description: 'Selecione um condominio antes de salvar a vaga.',
+          variant: 'warning',
+        });
         return;
       }
 
@@ -152,26 +159,34 @@ export default function VagasPage() {
       await carregarVagas();
       setModalAberto(false);
       setVagaEditando(null);
-      alert('Vaga salva com sucesso!');
+      showToast({
+        title: 'Vaga salva',
+        description: 'A vaga foi salva com sucesso.',
+        variant: 'success',
+      });
     } catch (error) {
       console.error('Erro ao salvar vaga:', error);
-      alert(error instanceof Error ? error.message : 'Erro ao salvar vaga.');
+      showToast({
+        title: 'Falha ao salvar vaga',
+        description: error instanceof Error ? error.message : 'Erro ao salvar vaga.',
+        variant: 'error',
+      });
     } finally {
       setSalvando(false);
     }
   };
 
-  const handleExcluirVaga = async (vaga: Vaga) => {
-    if (
-      !confirm(
-        `Excluir a vaga ${vaga.numero}? Esta ação é permanente e será bloqueada se existir histórico de locação, reserva ou solicitação.`
-      )
-    ) {
+  const handleExcluirVaga = (vaga: Vaga) => {
+    setVagaExcluindo(vaga);
+  };
+
+  const confirmarExclusaoVaga = async () => {
+    if (!vagaExcluindo) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/vagas/${vaga.id}`, {
+      const response = await fetch(`/api/vagas/${vagaExcluindo.id}`, {
         method: 'DELETE',
       });
 
@@ -181,9 +196,20 @@ export default function VagasPage() {
       }
 
       await carregarVagas();
+      showToast({
+        title: 'Vaga excluida',
+        description: 'A vaga foi removida com sucesso.',
+        variant: 'success',
+      });
     } catch (error) {
       console.error('Erro ao excluir vaga:', error);
-      alert(error instanceof Error ? error.message : 'Erro ao excluir vaga');
+      showToast({
+        title: 'Falha ao excluir vaga',
+        description: error instanceof Error ? error.message : 'Erro ao excluir vaga',
+        variant: 'error',
+      });
+    } finally {
+      setVagaExcluindo(null);
     }
   };
 
@@ -208,6 +234,11 @@ export default function VagasPage() {
 
     await carregarVagas();
     setVagaTransferindo(null);
+    showToast({
+      title: 'Vaga transferida',
+      description: 'A vaga foi vinculada a nova unidade com sucesso.',
+      variant: 'success',
+    });
   };
 
   const vagasFiltradas = vagas.filter((vaga) => {
@@ -482,6 +513,30 @@ export default function VagasPage() {
           vaga={vagaTransferindo}
           onClose={() => setVagaTransferindo(null)}
           onTransferir={handleTransferirVaga}
+        />
+        <ConfirmDialog
+          aberto={!!vagaExcluindo}
+          aoFechar={() => setVagaExcluindo(null)}
+          aoConfirmar={confirmarExclusaoVaga}
+          titulo="Excluir vaga"
+          descricao={
+            vagaExcluindo
+              ? `Voce esta prestes a excluir a vaga ${vagaExcluindo.numero}. Essa acao e permanente e sera bloqueada se existir historico de locacao, reserva ou solicitacao.`
+              : ''
+          }
+          confirmarLabel="Excluir vaga"
+        />
+        <ConfirmDialog
+          aberto={!!vagaExcluindo}
+          aoFechar={() => setVagaExcluindo(null)}
+          aoConfirmar={confirmarExclusaoVaga}
+          titulo="Excluir vaga"
+          descricao={
+            vagaExcluindo
+              ? `Voce esta prestes a excluir a vaga ${vagaExcluindo.numero}. Essa acao e permanente e sera bloqueada se existir historico de locacao, reserva ou solicitacao.`
+              : ''
+          }
+          confirmarLabel="Excluir vaga"
         />
       </div>
     </Layout>

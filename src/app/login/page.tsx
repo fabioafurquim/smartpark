@@ -9,6 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Mail, Lock, Building2, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button, Input } from '@/components/ui';
+import { useToast } from '@/components/providers/ToastProvider';
 
 const loginSchema = z.object({
   email: z.string().email('Email invalido'),
@@ -20,6 +21,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const [verificandoConfiguracao, setVerificandoConfiguracao] = useState(true);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
@@ -221,7 +223,12 @@ function LoginContent() {
               type="button"
               className="text-sm text-primary-600 hover:text-primary-700 transition-colors"
               onClick={() => {
-                alert('Funcionalidade em desenvolvimento');
+                showToast({
+                  title: 'Recuperacao de senha',
+                  description:
+                    'Esse fluxo ainda sera implementado. Por enquanto, solicite apoio ao administrador do sistema.',
+                  variant: 'info',
+                });
               }}
             >
               Esqueceu sua senha?

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
 import { z } from 'zod';
-import { middlewareEstrutura } from '../../../lib/auth-middleware';
+import { middlewareEstrutura, middlewareEstruturaOperacional } from '../../../lib/auth-middleware';
 import { UsuarioSessao } from '../../../types';
 
 // Schema de validação para unidade
@@ -23,7 +23,7 @@ const unidadeSchema = z.object({
  * Query params: condominioId, torreId (opcionais)
  */
 export async function GET(request: NextRequest) {
-  return middlewareEstrutura(request, async (req, usuario: UsuarioSessao, condominioId?: string) => {
+  return middlewareEstruturaOperacional(request, async (req, usuario: UsuarioSessao, condominioId?: string) => {
     try {
       const { searchParams } = new URL(req.url);
       const torreId = searchParams.get('torreId');

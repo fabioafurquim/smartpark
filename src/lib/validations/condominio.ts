@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MODALIDADES_CONDOMINIO } from '@/lib/condominio-modalidade';
 
 // Schema para validação de telefone brasileiro
 const telefoneSchema = z.string()
@@ -32,7 +33,8 @@ export const criarCondominioSchema = z.object({
     .trim(),
   telefone: telefoneSchema,
   email: emailSchema,
-  logoUrl: urlSchema
+  logoUrl: urlSchema,
+  modalidade: z.enum(MODALIDADES_CONDOMINIO).default('EMPRESTIMO'),
 });
 
 /**
@@ -52,6 +54,7 @@ export const atualizarCondominioSchema = z.object({
   telefone: telefoneSchema,
   email: emailSchema,
   logoUrl: urlSchema,
+  modalidade: z.enum(MODALIDADES_CONDOMINIO).optional(),
   ativo: z.boolean().optional()
 });
 

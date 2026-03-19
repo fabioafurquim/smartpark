@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Save, X } from 'lucide-react';
+import { Save, ShieldCheck, X } from 'lucide-react';
+import { useToast } from '@/components/providers/ToastProvider';
 
 interface Vaga {
   id: string;
@@ -11,10 +12,6 @@ interface Vaga {
     id: string;
     disponivel: boolean;
     tiposPermitidos: string[];
-    valorHora?: number;
-    valorDiaria?: number;
-    valorMensal?: number;
-    valorAnual?: number;
   };
 }
 
@@ -33,39 +30,22 @@ export default function ConfiguracaoLocacaoModal({
   vaga,
   onSave,
 }: ConfiguracaoLocacaoModalProps) {
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     disponivel: false,
     tiposPermitidos: [] as string[],
-    valorHora: '',
-    valorDiaria: '',
-    valorMensal: '',
-    valorAnual: '',
   });
-
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen && vaga.configuracaoLocacao) {
+    if (isOpen) {
       setFormData({
-        disponivel: vaga.configuracaoLocacao.disponivel,
-        tiposPermitidos: vaga.configuracaoLocacao.tiposPermitidos,
-        valorHora: vaga.configuracaoLocacao.valorHora?.toString() || '',
-        valorDiaria: vaga.configuracaoLocacao.valorDiaria?.toString() || '',
-        valorMensal: vaga.configuracaoLocacao.valorMensal?.toString() || '',
-        valorAnual: vaga.configuracaoLocacao.valorAnual?.toString() || '',
+        disponivel: vaga.configuracaoLocacao?.disponivel ?? false,
+        tiposPermitidos: vaga.configuracaoLocacao?.tiposPermitidos ?? [],
       });
-    } else if (isOpen) {
-      setFormData({
-        disponivel: false,
-        tiposPermitidos: [],
-        valorHora: '',
-        valorDiaria: '',
-        valorMensal: '',
-        valorAnual: '',
-      });
+      setErro(null);
     }
-    setErro(null);
   }, [isOpen, vaga]);
 
   const toggleTipoLocacao = (tipo: string) => {
@@ -83,47 +63,34 @@ export default function ConfiguracaoLocacaoModal({
       setSalvando(true);
 
       if (formData.disponivel && formData.tiposPermitidos.length === 0) {
-        setErro('Selecione pelo menos uma modalidade.');
+        setErro('Selecione pelo menos uma modalidade de emprestimo.');
         return;
       }
-
-      if (formData.tiposPermitidos.includes('HORA') && !formData.valorHora) {
-        setErro('Defina o valor por hora.');
-        return;
-      }
-      if (formData.tiposPermitidos.includes('DIARIA') && !formData.valorDiaria) {
-        setErro('Defina o valor por diária.');
-        return;
-      }
-      if (formData.tiposPermitidos.includes('MENSAL') && !formData.valorMensal) {
-        setErro('Defina o valor mensal.');
-        return;
-      }
-      if (formData.tiposPermitidos.includes('ANUAL') && !formData.valorAnual) {
-        setErro('Defina o valor anual.');
-        return;
-      }
-
-      const payload = {
-        disponivel: formData.disponivel,
-        tiposPermitidos: formData.tiposPermitidos,
-        valorHora: formData.valorHora ? parseFloat(formData.valorHora) : null,
-        valorDiaria: formData.valorDiaria ? parseFloat(formData.valorDiaria) : null,
-        valorMensal: formData.valorMensal ? parseFloat(formData.valorMensal) : null,
-        valorAnual: formData.valorAnual ? parseFloat(formData.valorAnual) : null,
-      };
 
       const response = await fetch(`/api/vagas/${vaga.id}/configuracao-locacao`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          disponivel: formData.disponivel,
+          tiposPermitidos: formData.tiposPermitidos,
+          valorHora: null,
+          valorDiaria: null,
+          valorMensal: null,
+          valorAnual: null,
+        }),
       });
 
+      const data = await response.json().catch(() => null);
+
       if (!response.ok) {
-        const responseError = await response.json();
-        throw new Error(responseError.erro || 'Erro ao salvar configuração');
+        throw new Error(data?.erro || 'Erro ao salvar configuracao');
       }
 
+      showToast({
+        title: 'Vaga atualizada',
+        description: 'A disponibilidade da vaga foi salva com sucesso.',
+        variant: 'success',
+      });
       onSave();
       onClose();
     } catch (err) {
@@ -133,7 +100,9 @@ export default function ConfiguracaoLocacaoModal({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]">
@@ -145,7 +114,7 @@ export default function ConfiguracaoLocacaoModal({
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Configurar vaga {vaga.numero}</h2>
                 <p className="text-sm text-slate-500">
-                  Defina quando a vaga aparece para locação e quanto ela custa.
+                  Escolha quando a vaga pode ser publicada para emprestimo.
                 </p>
               </div>
               <button
@@ -159,8 +128,8 @@ export default function ConfiguracaoLocacaoModal({
 
           <div className="overflow-y-auto px-5 py-5">
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
+              onSubmit={(event) => {
+                event.preventDefault();
                 void handleSalvar();
               }}
               className="space-y-5"
@@ -176,150 +145,64 @@ export default function ConfiguracaoLocacaoModal({
                   <input
                     type="checkbox"
                     checked={formData.disponivel}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setFormData((prev) => ({
                         ...prev,
-                        disponivel: e.target.checked,
+                        disponivel: event.target.checked,
                       }))
                     }
                     className="mt-1 h-4 w-4 rounded text-blue-600"
                   />
                   <div>
-                    <p className="font-medium text-slate-900">Disponível para locação</p>
+                    <p className="font-medium text-slate-900">Disponivel para emprestimo</p>
                     <p className="text-sm text-slate-500">
-                      Quando ativada, sua vaga passa a aparecer para moradores do condomínio.
+                      Quando ativada, sua vaga pode ser utilizada por outros moradores do condominio.
                     </p>
                   </div>
                 </label>
               </div>
 
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                A cobrança automática ainda não faz parte do piloto. Por enquanto, esta etapa
-                serve para publicação, valores e modalidades da vaga.
-              </div>
-
               {formData.disponivel && (
-                <>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">Modalidades permitidas</p>
-                      <p className="text-xs text-slate-500">
-                        Escolha uma ou mais formas de locação para essa vaga.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {TIPOS_LOCACAO.map((tipo) => (
-                        <button
-                          key={tipo}
-                          type="button"
-                          onClick={() => toggleTipoLocacao(tipo)}
-                          className={`rounded-2xl px-3 py-3 text-sm font-medium transition-colors ${
-                            formData.tiposPermitidos.includes(tipo)
-                              ? 'bg-blue-600 text-white shadow-sm'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          }`}
-                        >
-                          {tipo === 'HORA' && 'Por hora'}
-                          {tipo === 'DIARIA' && 'Diária'}
-                          {tipo === 'MENSAL' && 'Mensal'}
-                          {tipo === 'ANUAL' && 'Anual'}
-                        </button>
-                      ))}
-                    </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Modalidades permitidas</p>
+                    <p className="text-xs text-slate-500">
+                      Escolha como a vaga pode ser emprestada para outros moradores.
+                    </p>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {formData.tiposPermitidos.includes('HORA') && (
-                      <div className="rounded-[28px] border border-slate-200 p-4">
-                        <label className="mb-2 block text-sm font-medium text-slate-700">
-                          Valor por hora (R$)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.valorHora}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              valorHora: e.target.value,
-                            }))
-                          }
-                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    )}
-
-                    {formData.tiposPermitidos.includes('DIARIA') && (
-                      <div className="rounded-[28px] border border-slate-200 p-4">
-                        <label className="mb-2 block text-sm font-medium text-slate-700">
-                          Valor por diária (R$)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.valorDiaria}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              valorDiaria: e.target.value,
-                            }))
-                          }
-                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    )}
-
-                    {formData.tiposPermitidos.includes('MENSAL') && (
-                      <div className="rounded-[28px] border border-slate-200 p-4">
-                        <label className="mb-2 block text-sm font-medium text-slate-700">
-                          Valor mensal (R$)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.valorMensal}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              valorMensal: e.target.value,
-                            }))
-                          }
-                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    )}
-
-                    {formData.tiposPermitidos.includes('ANUAL') && (
-                      <div className="rounded-[28px] border border-slate-200 p-4">
-                        <label className="mb-2 block text-sm font-medium text-slate-700">
-                          Valor anual (R$)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.valorAnual}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              valorAnual: e.target.value,
-                            }))
-                          }
-                          className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    )}
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {TIPOS_LOCACAO.map((tipo) => (
+                      <button
+                        key={tipo}
+                        type="button"
+                        onClick={() => toggleTipoLocacao(tipo)}
+                        className={`rounded-2xl px-3 py-3 text-sm font-medium transition-colors ${
+                          formData.tiposPermitidos.includes(tipo)
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {tipo === 'HORA' && 'Por hora'}
+                        {tipo === 'DIARIA' && 'Diaria'}
+                        {tipo === 'MENSAL' && 'Mensal'}
+                        {tipo === 'ANUAL' && 'Anual'}
+                      </button>
+                    ))}
                   </div>
-                </>
+                </div>
               )}
+
+              <div className="rounded-[28px] border border-blue-100 bg-blue-50 p-4">
+                <div className="flex items-center gap-2 text-sm text-blue-900">
+                  <ShieldCheck className="h-4 w-4" />
+                  Publicacao controlada da vaga
+                </div>
+                <p className="mt-2 text-sm text-blue-800">
+                  Defina quando a vaga pode ser usada por outros moradores e ajuste as modalidades
+                  permitidas sem perder o historico de uso.
+                </p>
+              </div>
 
               <div className="sticky bottom-0 grid gap-2 border-t border-slate-100 bg-white pb-1 pt-4 sm:grid-cols-2">
                 <button
@@ -336,7 +219,7 @@ export default function ConfiguracaoLocacaoModal({
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
-                  {salvando ? 'Salvando...' : 'Salvar configuração'}
+                  {salvando ? 'Salvando...' : 'Salvar configuracao'}
                 </button>
               </div>
             </form>

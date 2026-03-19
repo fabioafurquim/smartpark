@@ -27,6 +27,13 @@ export async function GET() {
         usuarioId: usuario.id,
       },
       include: {
+        condominio: {
+          select: {
+            id: true,
+            nome: true,
+            modalidade: true,
+          },
+        },
         vagas: {
           include: {
             configuracaoLocacao: true,
@@ -79,6 +86,7 @@ export async function GET() {
       numero: unidade.numero,
       andar: unidade.andar,
       tipo: unidade.tipo,
+      condominio: unidade.condominio,
       vagas: vagasFormatadas,
     });
   } catch (error) {

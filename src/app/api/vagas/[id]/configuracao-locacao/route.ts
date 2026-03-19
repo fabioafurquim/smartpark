@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, temPermissao } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { UsuarioSessao } from '@/types';
@@ -8,10 +8,10 @@ import { UsuarioSessao } from '@/types';
 const configuracaoSchema = z.object({
   disponivel: z.boolean(),
   tiposPermitidos: z.array(z.enum(['HORA', 'DIARIA', 'MENSAL', 'ANUAL'])),
-  valorHora: z.number().positive().nullable().optional(),
-  valorDiaria: z.number().positive().nullable().optional(),
-  valorMensal: z.number().positive().nullable().optional(),
-  valorAnual: z.number().positive().nullable().optional(),
+  valorHora: z.number().nullable().optional(),
+  valorDiaria: z.number().nullable().optional(),
+  valorMensal: z.number().nullable().optional(),
+  valorAnual: z.number().nullable().optional(),
 });
 
 /**
@@ -44,6 +44,11 @@ export async function POST(
             usuarioId: true,
           },
         },
+        condominio: {
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
@@ -54,8 +59,16 @@ export async function POST(
       );
     }
 
-    // Verificar se o usuário é o proprietário da unidade
-    if (vaga.unidade.usuarioId !== usuario.id) {
+    const podeGerenciarComoMorador =
+      vaga.unidade.usuarioId === usuario.id &&
+      temPermissao(usuario, 'configurarVagasLocacao', vaga.condominio.id);
+    const podeGerenciarComoAdministrador = temPermissao(
+      usuario,
+      'configurarVagasLocacao',
+      vaga.condominio.id
+    );
+
+    if (!podeGerenciarComoMorador && !podeGerenciarComoAdministrador) {
       return NextResponse.json(
         { erro: 'Você não tem permissão para configurar esta vaga' },
         { status: 403 }
@@ -77,10 +90,10 @@ export async function POST(
         data: {
           disponivel: dadosValidados.disponivel,
           tiposPermitidos: dadosValidados.tiposPermitidos,
-          valorHora: dadosValidados.valorHora || null,
-          valorDiaria: dadosValidados.valorDiaria || null,
-          valorMensal: dadosValidados.valorMensal || null,
-          valorAnual: dadosValidados.valorAnual || null,
+          valorHora: null,
+          valorDiaria: null,
+          valorMensal: null,
+          valorAnual: null,
         },
       });
     } else {
@@ -90,10 +103,10 @@ export async function POST(
           vagaId,
           disponivel: dadosValidados.disponivel,
           tiposPermitidos: dadosValidados.tiposPermitidos,
-          valorHora: dadosValidados.valorHora || null,
-          valorDiaria: dadosValidados.valorDiaria || null,
-          valorMensal: dadosValidados.valorMensal || null,
-          valorAnual: dadosValidados.valorAnual || null,
+          valorHora: null,
+          valorDiaria: null,
+          valorMensal: null,
+          valorAnual: null,
         },
       });
     }

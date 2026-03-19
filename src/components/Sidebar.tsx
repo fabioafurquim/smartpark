@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   Home,
+  LockKeyhole,
   MapPin,
   Menu,
   Settings,
@@ -105,7 +106,13 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
           id: 'admin-condominios',
           rotulo: 'Condomínios',
           icone: Building2,
-          href: '/dashboard/condominios',
+          href: '/admin/condominios',
+        },
+        {
+          id: 'admin-permissoes',
+          rotulo: 'Permissoes de Perfis',
+          icone: LockKeyhole,
+          href: '/admin/permissoes',
         },
         {
           id: 'admin-locacoes',
@@ -125,13 +132,13 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
           id: 'condominios-lista',
           rotulo: 'Listar Condomínios',
           icone: Building2,
-          href: '/dashboard/condominios',
+          href: '/admin/condominios',
         },
         {
           id: 'condominios-novo',
           rotulo: 'Novo Condomínio',
           icone: Building2,
-          href: '/dashboard/condominios/novo',
+          href: '/admin/condominios',
         },
       ],
     },
@@ -216,6 +223,30 @@ export function Sidebar({ aberta, aoAlternar }: SidebarProps) {
 
     if (item.apenasParaPerfisOperacionais && !temPerfilOperacional()) {
       return false;
+    }
+
+    if (item.id === 'estrutura') {
+      const podeAcessarEstrutura = usuario.perfis.some((perfil) =>
+        [
+          'gerenciarEstrutura',
+          'vincularMoradorUnidade',
+          'vincularVagaUnidade',
+        ].some((permissao) => temPermissao(usuario, permissao, perfil.condominioId))
+      );
+
+      if (!podeAcessarEstrutura) {
+        return false;
+      }
+    }
+
+    if (item.id === 'minhas-vagas') {
+      const podeConfigurarVagas = usuario.perfis.some((perfil) =>
+        temPermissao(usuario, 'configurarVagasLocacao', perfil.condominioId)
+      );
+
+      if (!podeConfigurarVagas) {
+        return false;
+      }
     }
 
     if (item.permissaoNecessaria && !temPermissao(usuario, item.permissaoNecessaria)) {

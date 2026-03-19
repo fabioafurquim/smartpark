@@ -4,6 +4,22 @@ import { authOptions, ehAdministradorMestre } from '../../../../lib/auth';
 import { prisma } from '../../../../lib/prisma';
 import { UsuarioSessao } from '../../../../types';
 
+function obterContextoModalidade(modalidades: string[]) {
+  const usaEmprestimo = modalidades.some(
+    (modalidade) => modalidade === 'EMPRESTIMO' || modalidade === 'HIBRIDO'
+  );
+  const usaLocacao = modalidades.some(
+    (modalidade) => modalidade === 'LOCACAO' || modalidade === 'HIBRIDO'
+  );
+
+  return {
+    usaEmprestimo,
+    usaLocacao,
+    usaSomenteEmprestimo: usaEmprestimo && !usaLocacao,
+    usaSomenteLocacao: usaLocacao && !usaEmprestimo,
+  };
+}
+
 /**
  * GET /api/dashboard/estatisticas
  * Retorna estatísticas personalizadas por perfil do usuário
@@ -35,6 +51,27 @@ export async function GET() {
       ) || 'morador';
     const condominioIds = usuario.perfis?.map(p => p.condominioId).filter(Boolean) || [];
 
+    const modalidadesCondominio = isAdminMestre
+      ? (
+          await prisma.condominio.findMany({
+            select: { modalidade: true },
+          })
+        ).map((condominio) => condominio.modalidade)
+      : condominioIds.length > 0
+        ? (
+            await prisma.condominio.findMany({
+              where: {
+                id: {
+                  in: condominioIds,
+                },
+              },
+              select: { modalidade: true },
+            })
+          ).map((condominio) => condominio.modalidade)
+        : [];
+
+    const contextoModalidade = obterContextoModalidade(modalidadesCondominio);
+
     if (isAdminMestre) {
       // ESTATÍSTICAS PARA ADMINISTRADOR MESTRE
       const [
@@ -44,7 +81,7 @@ export async function GET() {
         vagasDisponiveis,
         totalLocacoes,
         locacoesAtivas,
-        locacoesPendentes,
+        locacoesFinalizadas,
         solicitacoesCadastroPendentes,
         locacoesHoje,
         locacoesSemana,
@@ -61,7 +98,7 @@ export async function GET() {
         }),
         prisma.locacao.count(),
         prisma.locacao.count({ where: { status: 'ATIVA' } }),
-        prisma.locacao.count({ where: { status: 'PENDENTE' } }),
+        prisma.locacao.count({ where: { status: 'FINALIZADA' } }),
         prisma.solicitacaoCadastro.count({ where: { status: 'pendente' } }),
         prisma.locacao.count({
           where: {
@@ -127,7 +164,7 @@ export async function GET() {
           vagasDisponiveis,
           totalLocacoes,
           locacoesAtivas,
-          locacoesPendentes,
+          locacoesFinalizadas,
           solicitacoesCadastroPendentes,
           receitaTotal: receitaTotal._sum.valor || 0
         },
@@ -137,6 +174,7 @@ export async function GET() {
           locacoesMes,
           taxaOcupacao: totalVagas > 0 ? Math.round((vagasDisponiveis / totalVagas) * 100) : 0
         },
+        contexto: contextoModalidade,
         graficos: {
           locacoesPorMes: locacoesPorMes.map(l => ({
             mes: l.mes,
@@ -163,7 +201,7 @@ export async function GET() {
         totalUnidades,
         totalMoradores,
         locacoesAtivas,
-        locacoesPendentes,
+        locacoesFinalizadas,
         solicitacoesCadastroPendentes,
         locacoesMes,
         receitaMes
@@ -195,7 +233,7 @@ export async function GET() {
         }),
         prisma.locacao.count({
           where: {
-            status: 'PENDENTE',
+            status: 'FINALIZADA',
             vaga: { condominioId: { in: condominioIds } }
           }
         }),
@@ -229,14 +267,15 @@ export async function GET() {
           totalUnidades,
           totalMoradores,
           locacoesAtivas,
-          locacoesPendentes,
+          locacoesFinalizadas,
           solicitacoesCadastroPendentes
         },
         metricas: {
           locacoesMes,
           receitaMes: receitaMes._sum.valor || 0,
           taxaOcupacao: totalVagas > 0 ? Math.round(((totalVagas - vagasDisponiveis) / totalVagas) * 100) : 0
-        }
+        },
+        contexto: contextoModalidade,
       });
 
     } else {
@@ -244,8 +283,10 @@ export async function GET() {
       const [
         vagasDisponiveis,
         minhasLocacoesAtivas,
-        minhasLocacoesPendentes,
+        minhasLocacoesMes,
+        minhasLocacoesFinalizadasMes,
         minhasVagasAlugadas,
+        minhasVagasPublicadas,
         totalGastoMes,
         totalRecebidoMes
       ] = await Promise.all([
@@ -264,11 +305,19 @@ export async function GET() {
             status: 'ATIVA'
           }
         }),
-        // Minhas locações pendentes (como locatário)
+        // Meus usos no mês (como locatário)
         prisma.locacao.count({
           where: {
             locatarioId: usuario.id,
-            status: 'PENDENTE'
+            criadoEm: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+          }
+        }),
+        // Meus usos finalizados no mês (como locatário)
+        prisma.locacao.count({
+          where: {
+            locatarioId: usuario.id,
+            status: 'FINALIZADA',
+            criadoEm: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
           }
         }),
         // Minhas vagas alugadas (como proprietário)
@@ -277,6 +326,15 @@ export async function GET() {
             proprietarioId: usuario.id,
             status: 'ATIVA'
           }
+        }),
+        // Minhas vagas publicadas para uso
+        prisma.vaga.count({
+          where: {
+            proprietarioId: usuario.id,
+            configuracaoLocacao: {
+              disponivel: true,
+            },
+          },
         }),
         // Total gasto no mês (como locatário)
         prisma.locacao.aggregate({
@@ -308,8 +366,10 @@ export async function GET() {
         cards: {
           vagasDisponiveis,
           minhasLocacoesAtivas,
-          minhasLocacoesPendentes,
-          minhasVagasAlugadas
+          minhasLocacoesMes,
+          minhasLocacoesFinalizadasMes,
+          minhasVagasAlugadas,
+          minhasVagasPublicadas,
         },
         metricas: {
           totalGastoMes: totalGastoMes._sum.valor || 0,
@@ -317,7 +377,8 @@ export async function GET() {
           taxaOcupacao: totalVagasCondominio > 0 
             ? Math.round(((totalVagasCondominio - vagasDisponiveis) / totalVagasCondominio) * 100) 
             : 0
-        }
+        },
+        contexto: contextoModalidade,
       });
     }
 

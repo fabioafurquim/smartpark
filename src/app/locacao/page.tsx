@@ -2,15 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import {
-  Building2,
-  Calendar,
-  DollarSign,
-  Filter,
-  MapPin,
-  Search,
-  ShieldCheck,
-} from 'lucide-react';
+import { Building2, Calendar, Filter, MapPin, Search, ShieldCheck } from 'lucide-react';
 import { Layout } from '@/components';
 import { Button } from '@/components/ui';
 import LocacaoModal from '@/components/modals/LocacaoModal';
@@ -40,10 +32,6 @@ interface Vaga {
   configuracaoLocacao: {
     disponivel: boolean;
     tiposPermitidos: string[];
-    valorHora: number | null;
-    valorDiaria: number | null;
-    valorMensal: number | null;
-    valorAnual: number | null;
   };
 }
 
@@ -115,16 +103,6 @@ export default function LocacaoPage() {
     [searchTerm, tipoFiltro, vagas]
   );
 
-  const abrirModalLocacao = (vaga: Vaga) => {
-    setVagaSelecionada(vaga);
-    setModalAberto(true);
-  };
-
-  const fecharModal = () => {
-    setModalAberto(false);
-    setVagaSelecionada(null);
-  };
-
   const getTipoColor = (tipo: string) => {
     switch (tipo) {
       case 'COBERTA':
@@ -142,28 +120,10 @@ export default function LocacaoPage() {
     }
   };
 
-  const getValorExibicao = (vaga: Vaga) => {
-    const valores: string[] = [];
-    if (vaga.configuracaoLocacao.valorHora) {
-      valores.push(`R$ ${Number(vaga.configuracaoLocacao.valorHora).toFixed(2)}/h`);
-    }
-    if (vaga.configuracaoLocacao.valorDiaria) {
-      valores.push(`R$ ${Number(vaga.configuracaoLocacao.valorDiaria).toFixed(2)}/dia`);
-    }
-    if (vaga.configuracaoLocacao.valorMensal) {
-      valores.push(`R$ ${Number(vaga.configuracaoLocacao.valorMensal).toFixed(2)}/mês`);
-    }
-    if (vaga.configuracaoLocacao.valorAnual) {
-      valores.push(`R$ ${Number(vaga.configuracaoLocacao.valorAnual).toFixed(2)}/ano`);
-    }
-
-    return valores.join(' • ');
-  };
-
   const escopoAtual =
     condominios.length === 1
       ? condominios[0]?.nome
-      : `${condominios.length} condomínios no seu escopo`;
+      : `${condominios.length} condominios no seu escopo`;
 
   return (
     <Layout>
@@ -172,21 +132,20 @@ export default function LocacaoPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="mb-3 inline-flex items-center rounded-full bg-white/85 px-3 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100">
-                Vagas do seu condomínio
+                Vagas do seu condominio
               </div>
               <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl">
                 <MapPin className="h-7 w-7 text-blue-600" />
-                Locação de vagas
+                Emprestimo de vagas
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
-                Veja vagas publicadas, compare modalidades e envie seu pedido de locação em poucos
-                toques.
+                Veja vagas publicadas no seu condominio e registre o emprestimo em poucos toques.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 lg:min-w-[340px]">
               <div className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-100">
-                <p className="text-xs text-slate-500">Disponíveis</p>
+                <p className="text-xs text-slate-500">Disponiveis</p>
                 <p className="mt-1 text-2xl font-bold text-slate-900">{vagasFiltradas.length}</p>
               </div>
               <div className="rounded-2xl bg-white/90 p-4 shadow-sm ring-1 ring-slate-100">
@@ -234,24 +193,9 @@ export default function LocacaoPage() {
             <div className="rounded-2xl bg-slate-50 p-4">
               <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
                 <ShieldCheck className="h-4 w-4" />
-                Regras do piloto
+                Regras de disponibilidade
               </div>
-              <p className="text-sm text-slate-700">
-                Somente vagas do seu condomínio aparecem aqui.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-[28px] border border-amber-200 bg-amber-50 p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <DollarSign className="mt-0.5 h-5 w-5 text-amber-700" />
-            <div>
-              <p className="font-medium text-amber-900">Pagamento digital em breve</p>
-              <p className="mt-1 text-sm text-amber-800">
-                Neste piloto, o pedido e a aprovação já ficam registrados no sistema. Em uma
-                próxima fase, o SmartPark também vai centralizar o pagamento da locação por aqui.
-              </p>
+              <p className="text-sm text-slate-700">Somente vagas do seu condominio aparecem aqui.</p>
             </div>
           </div>
         </section>
@@ -265,7 +209,7 @@ export default function LocacaoPage() {
             <MapPin className="mx-auto mb-4 h-12 w-12 text-slate-300" />
             <h3 className="text-lg font-semibold text-slate-900">Nenhuma vaga encontrada</h3>
             <p className="mt-2 text-sm text-slate-500">
-              Ajuste a busca ou o filtro para encontrar outra vaga disponível.
+              Ajuste a busca ou o filtro para encontrar outra vaga disponivel.
             </p>
           </div>
         ) : (
@@ -282,7 +226,7 @@ export default function LocacaoPage() {
                         Vaga {vaga.numero}
                       </div>
                       <h3 className="text-lg font-semibold text-slate-900">
-                        {vaga.unidade.torre.nome} • Unidade {vaga.unidade.numero}
+                        {vaga.unidade.torre.nome} - Unidade {vaga.unidade.numero}
                       </h3>
                       <p className="mt-1 flex items-center gap-2 text-sm text-slate-600">
                         <Building2 className="h-4 w-4" />
@@ -291,9 +235,7 @@ export default function LocacaoPage() {
                     </div>
 
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${getTipoColor(
-                        vaga.tipo
-                      )}`}
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${getTipoColor(vaga.tipo)}`}
                     >
                       {vaga.tipo}
                     </span>
@@ -302,18 +244,17 @@ export default function LocacaoPage() {
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl bg-slate-50 p-4">
                       <p className="text-xs uppercase tracking-wide text-slate-500">
-                        Morador responsável
+                        Morador responsavel
                       </p>
                       <p className="mt-1 text-sm font-medium text-slate-900">{vaga.proprietario.nome}</p>
                     </div>
 
                     <div className="rounded-2xl bg-blue-50 p-4">
-                      <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-blue-700">
-                        <DollarSign className="h-4 w-4" />
-                        Valores publicados
+                      <div className="mb-1 text-xs uppercase tracking-wide text-blue-700">
+                        Uso permitido
                       </div>
                       <p className="text-sm font-medium text-blue-950">
-                        {getValorExibicao(vaga) || 'Valores em configuração'}
+                        Emprestimo registrado pelo app para moradores do condominio
                       </p>
                     </div>
                   </div>
@@ -325,7 +266,7 @@ export default function LocacaoPage() {
                         className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
                       >
                         {tipo === 'HORA' && 'Por hora'}
-                        {tipo === 'DIARIA' && 'Diária'}
+                        {tipo === 'DIARIA' && 'Diaria'}
                         {tipo === 'MENSAL' && 'Mensal'}
                         {tipo === 'ANUAL' && 'Anual'}
                       </span>
@@ -333,11 +274,14 @@ export default function LocacaoPage() {
                   </div>
 
                   <Button
-                    onClick={() => abrirModalLocacao(vaga)}
+                    onClick={() => {
+                      setVagaSelecionada(vaga);
+                      setModalAberto(true);
+                    }}
                     className="mt-5 h-12 w-full rounded-2xl text-sm font-medium"
                   >
                     <Calendar className="mr-2 h-4 w-4" />
-                    Solicitar locação
+                    Registrar emprestimo
                   </Button>
                 </div>
               </article>
@@ -348,11 +292,21 @@ export default function LocacaoPage() {
         {vagaSelecionada && (
           <LocacaoModal
             isOpen={modalAberto}
-            onClose={fecharModal}
+            onClose={() => {
+              setModalAberto(false);
+              setVagaSelecionada(null);
+            }}
             vaga={vagaSelecionada}
             onSuccess={() => {
-              fecharModal();
-              window.location.reload();
+              setModalAberto(false);
+              setVagaSelecionada(null);
+              void (async () => {
+                const response = await fetch('/api/vagas/disponiveis');
+                if (response.ok) {
+                  const dados = await response.json();
+                  setVagas(dados);
+                }
+              })();
             }}
           />
         )}

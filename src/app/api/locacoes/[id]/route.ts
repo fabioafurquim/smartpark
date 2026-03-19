@@ -4,11 +4,7 @@ import { z } from 'zod';
 import { authOptions, temPermissao } from '../../../../lib/auth';
 import { prisma } from '../../../../lib/prisma';
 import { UsuarioSessao } from '../../../../types';
-import {
-  getStatusLocacaoLabel,
-  getStatusPagamentoLocacaoLabel,
-  registrarEventoLocacao,
-} from '../../../../lib/locacao-eventos';
+import { getStatusLocacaoLabel, registrarEventoLocacao } from '../../../../lib/locacao-eventos';
 
 const atualizarStatusSchema = z.object({
   status: z.enum(['ATIVA', 'CANCELADA', 'FINALIZADA']),
@@ -51,6 +47,11 @@ const includeLocacaoDetalhe = {
     },
   },
   eventos: {
+    where: {
+      tipo: {
+        not: 'PAGAMENTO_DESATIVADO_PILOTO',
+      },
+    },
     orderBy: {
       criadoEm: 'desc' as const,
     },
@@ -101,9 +102,6 @@ function podeAlterarStatus(
   return false;
 }
 
-/**
- * PUT /api/locacoes/[id]
- */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -112,7 +110,7 @@ export async function PUT(
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
     }
 
     const usuario = session.user as UsuarioSessao;
@@ -132,7 +130,7 @@ export async function PUT(
     });
 
     if (!locacao) {
-      return NextResponse.json({ error: 'Locação não encontrada' }, { status: 404 });
+      return NextResponse.json({ error: 'Locacao nao encontrada' }, { status: 404 });
     }
 
     if (!podeAlterarStatus(usuario, locacao, validatedData.status)) {
@@ -140,10 +138,7 @@ export async function PUT(
     }
 
     if (locacao.status === validatedData.status) {
-      return NextResponse.json(
-        { error: 'A locação já está neste status' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'A locacao ja esta neste status' }, { status: 400 });
     }
 
     const transicoesValidas: Record<string, string[]> = {
@@ -157,7 +152,7 @@ export async function PUT(
     if (!transicoesValidas[locacao.status]?.includes(validatedData.status)) {
       return NextResponse.json(
         {
-          error: `Não é possível mudar de ${getStatusLocacaoLabel(locacao.status)} para ${getStatusLocacaoLabel(validatedData.status)}.`,
+          error: `Nao e possivel mudar de ${getStatusLocacaoLabel(locacao.status)} para ${getStatusLocacaoLabel(validatedData.status)}.`,
         },
         { status: 400 }
       );
@@ -171,7 +166,7 @@ export async function PUT(
     const descricaoEvento = validatedData.observacao?.trim()
       ? validatedData.observacao.trim()
       : validatedData.status === 'FINALIZADA'
-        ? `Locação encerrada. ${getStatusPagamentoLocacaoLabel(statusPagamento)}.`
+        ? 'Uso da vaga encerrado.'
         : undefined;
 
     const locacaoAtualizada = await prisma.$transaction(async (tx) => {
@@ -180,10 +175,7 @@ export async function PUT(
         data: {
           status: validatedData.status,
           statusPagamento,
-          pagamentoObservacao:
-            statusPagamento === 'CONFIRMADO'
-              ? 'Pagamento tratado manualmente neste piloto e marcado como confirmado no encerramento.'
-              : locacao.pagamentoObservacao,
+          pagamentoObservacao: locacao.pagamentoObservacao,
         },
         include: includeLocacaoDetalhe,
       });
@@ -207,7 +199,7 @@ export async function PUT(
               ? 'LOCACAO_FINALIZADA'
               : 'LOCACAO_CANCELADA',
           titulo: getStatusLocacaoLabel(validatedData.status),
-          mensagem: descricaoEvento || `A locação da vaga ${locacao.vaga.numero} mudou de status.`,
+          mensagem: descricaoEvento || `O uso da vaga ${locacao.vaga.numero} mudou de status.`,
           locacaoId: id,
         },
       });
@@ -219,19 +211,16 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Dados inválidos', details: error.issues },
+        { error: 'Dados invalidos', details: error.issues },
         { status: 400 }
       );
     }
 
-    console.error('Erro ao atualizar locação:', error);
+    console.error('Erro ao atualizar locacao:', error);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
-/**
- * GET /api/locacoes/[id]
- */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -240,7 +229,7 @@ export async function GET(
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
     }
 
     const usuario = session.user as UsuarioSessao;
@@ -252,7 +241,7 @@ export async function GET(
     });
 
     if (!locacao) {
-      return NextResponse.json({ error: 'Locação não encontrada' }, { status: 404 });
+      return NextResponse.json({ error: 'Locacao nao encontrada' }, { status: 404 });
     }
 
     const podeVisualizar =
@@ -267,7 +256,7 @@ export async function GET(
 
     return NextResponse.json(locacao);
   } catch (error) {
-    console.error('Erro ao buscar locação:', error);
+    console.error('Erro ao buscar locacao:', error);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

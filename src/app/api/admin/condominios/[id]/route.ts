@@ -1,44 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { ehAdministradorMestre } from '@/lib/auth';
-import { criarCondominioSchema } from '@/lib/validations/condominio';
 import { z } from 'zod';
+import { authOptions, ehAdministradorMestre } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { criarCondominioSchema } from '@/lib/validations/condominio';
 
 const paramsSchema = z.object({
-  id: z.string().uuid('ID do condomínio deve ser um UUID válido'),
+  id: z.string().min(1, 'ID do condominio invalido'),
 });
 
-/**
- * GET /api/admin/condominios/[id]
- * Busca um condomínio específico por ID
- */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
-    if (!ehAdministradorMestre(session as any)) {
+    if (!ehAdministradorMestre(session.user as any)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem acessar esta funcionalidade.' },
+        {
+          erro: 'Acesso negado. Apenas administradores mestres podem acessar esta funcionalidade.',
+        },
         { status: 403 }
       );
     }
 
-    // Validar parâmetros
     const { id } = paramsSchema.parse(await params);
 
-    // Buscar condomínio com estatísticas detalhadas
     const condominio = await prisma.condominio.findUnique({
       where: { id },
       include: {
@@ -54,7 +45,7 @@ export async function GET(
         },
         vagas: {
           where: {
-            proprietarioId: { not: null }, // Vagas ocupadas são aquelas com proprietário
+            proprietarioId: { not: null },
           },
           select: {
             id: true,
@@ -78,19 +69,16 @@ export async function GET(
     });
 
     if (!condominio) {
-      return NextResponse.json(
-        { erro: 'Condomínio não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ erro: 'Condominio nao encontrado' }, { status: 404 });
     }
 
-    // Formatar dados para resposta
-    const condominioFormatado = {
+    return NextResponse.json({
       id: condominio.id,
       nome: condominio.nome,
       endereco: condominio.endereco,
       telefone: condominio.telefone,
       email: condominio.email,
+      modalidade: condominio.modalidade,
       totalVagas: condominio._count.vagas,
       vagasOcupadas: condominio.vagas.length,
       totalUsuarios: condominio._count.perfisUsuario,
@@ -103,83 +91,60 @@ export async function GET(
         email: perfil.usuario.email,
         tipo: perfil.tipo,
       })),
-    };
-
-    return NextResponse.json(condominioFormatado);
+    });
   } catch (error) {
-    console.error('Erro ao buscar condomínio:', error);
-    
+    console.error('Erro ao buscar condominio:', error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Parâmetros inválidos', detalhes: error.issues },
+        { erro: 'Parametros invalidos', detalhes: error.issues },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(
-      { erro: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
-/**
- * PUT /api/admin/condominios/[id]
- * Atualiza um condomínio existente
- */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
-    if (!ehAdministradorMestre(session as any)) {
+    if (!ehAdministradorMestre(session.user as any)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem editar condomínios.' },
+        { erro: 'Acesso negado. Apenas administradores mestres podem editar condominios.' },
         { status: 403 }
       );
     }
 
-    // Validar parâmetros
     const { id } = paramsSchema.parse(await params);
 
-    // Verificar se o condomínio existe
     const condominioExistente = await prisma.condominio.findUnique({
       where: { id },
     });
 
     if (!condominioExistente) {
-      return NextResponse.json(
-        { erro: 'Condomínio não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ erro: 'Condominio nao encontrado' }, { status: 404 });
     }
 
-    // Validar dados da requisição
     const body = await request.json();
     const validacao = criarCondominioSchema.safeParse(body);
 
     if (!validacao.success) {
       return NextResponse.json(
-        { 
-          erro: 'Dados inválidos',
-          detalhes: validacao.error.issues 
-        },
+        { erro: 'Dados invalidos', detalhes: validacao.error.issues },
         { status: 400 }
       );
     }
 
-    const { nome, endereco, telefone, email, logoUrl } = validacao.data;
+    const { nome, endereco, telefone, email, logoUrl, modalidade } = validacao.data;
 
-    // Verificar se já existe outro condomínio com o mesmo nome (exceto o atual)
     const condominioComMesmoNome = await prisma.condominio.findFirst({
       where: {
         nome,
@@ -189,36 +154,36 @@ export async function PUT(
 
     if (condominioComMesmoNome) {
       return NextResponse.json(
-        { erro: 'Já existe um condomínio com este nome' },
+        { erro: 'Ja existe um condominio com este nome' },
         { status: 409 }
       );
     }
 
-    // Verificar se já existe outro condomínio com o mesmo email (exceto o atual)
-    const condominioComMesmoEmail = await prisma.condominio.findFirst({
-      where: {
-        email,
-        id: { not: id },
-      },
-    });
+    if (email) {
+      const condominioComMesmoEmail = await prisma.condominio.findFirst({
+        where: {
+          email,
+          id: { not: id },
+        },
+      });
 
-    if (condominioComMesmoEmail) {
-      return NextResponse.json(
-        { erro: 'Já existe um condomínio com este email' },
-        { status: 409 }
-      );
+      if (condominioComMesmoEmail) {
+        return NextResponse.json(
+          { erro: 'Ja existe um condominio com este email' },
+          { status: 409 }
+        );
+      }
     }
 
-    // Atualizar o condomínio
     const condominioAtualizado = await prisma.condominio.update({
       where: { id },
       data: {
         nome,
         endereco,
-        telefone,
-        email,
-        logoUrl,
-        atualizadoEm: new Date(),
+        telefone: telefone || null,
+        email: email || null,
+        logoUrl: logoUrl || null,
+        modalidade,
       },
       select: {
         id: true,
@@ -227,6 +192,7 @@ export async function PUT(
         telefone: true,
         email: true,
         logoUrl: true,
+        modalidade: true,
         codigoUnico: true,
         ativo: true,
         criadoEm: true,
@@ -236,51 +202,38 @@ export async function PUT(
 
     return NextResponse.json(condominioAtualizado);
   } catch (error) {
-    console.error('Erro ao atualizar condomínio:', error);
-    
+    console.error('Erro ao atualizar condominio:', error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Parâmetros inválidos', detalhes: error.issues },
+        { erro: 'Parametros invalidos', detalhes: error.issues },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(
-      { erro: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
-/**
- * DELETE /api/admin/condominios/[id]
- * Exclui um condomínio (apenas para administrador mestre)
- */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verificar autenticação e permissão
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      return NextResponse.json(
-        { erro: 'Não autorizado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ erro: 'Nao autorizado' }, { status: 401 });
     }
 
-    if (!ehAdministradorMestre(session as any)) {
+    if (!ehAdministradorMestre(session.user as any)) {
       return NextResponse.json(
-        { erro: 'Acesso negado. Apenas administradores mestres podem excluir condomínios.' },
+        { erro: 'Acesso negado. Apenas administradores mestres podem excluir condominios.' },
         { status: 403 }
       );
     }
 
-    // Validar parâmetros
     const { id } = paramsSchema.parse(await params);
 
-    // Verificar se o condomínio existe
     const condominio = await prisma.condominio.findUnique({
       where: { id },
       include: {
@@ -294,18 +247,14 @@ export async function DELETE(
     });
 
     if (!condominio) {
-      return NextResponse.json(
-        { erro: 'Condomínio não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ erro: 'Condominio nao encontrado' }, { status: 404 });
     }
 
-    // Verificar se há usuários ou vagas associadas
     if (condominio._count.perfisUsuario > 0) {
       return NextResponse.json(
-        { 
-          erro: 'Não é possível excluir condomínio com usuários associados',
-          detalhes: `O condomínio possui ${condominio._count.perfisUsuario} usuário(s) associado(s)`,
+        {
+          erro: 'Nao e possivel excluir condominio com usuarios associados',
+          detalhes: `O condominio possui ${condominio._count.perfisUsuario} usuario(s) associado(s)`,
         },
         { status: 400 }
       );
@@ -313,36 +262,29 @@ export async function DELETE(
 
     if (condominio._count.vagas > 0) {
       return NextResponse.json(
-        { 
-          erro: 'Não é possível excluir condomínio com vagas cadastradas',
-          detalhes: `O condomínio possui ${condominio._count.vagas} vaga(s) cadastrada(s)`,
+        {
+          erro: 'Nao e possivel excluir condominio com vagas cadastradas',
+          detalhes: `O condominio possui ${condominio._count.vagas} vaga(s) cadastrada(s)`,
         },
         { status: 400 }
       );
     }
 
-    // Excluir condomínio
     await prisma.condominio.delete({
       where: { id },
     });
 
-    return NextResponse.json(
-      { mensagem: 'Condomínio excluído com sucesso' },
-      { status: 200 }
-    );
+    return NextResponse.json({ mensagem: 'Condominio excluido com sucesso' });
   } catch (error) {
-    console.error('Erro ao excluir condomínio:', error);
-    
+    console.error('Erro ao excluir condominio:', error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: 'Parâmetros inválidos', detalhes: error.issues },
+        { erro: 'Parametros invalidos', detalhes: error.issues },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(
-      { erro: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ erro: 'Erro interno do servidor' }, { status: 500 });
   }
 }

@@ -58,7 +58,7 @@ export async function POST(
       return NextResponse.json({ error: 'Vaga nao encontrada' }, { status: 404 });
     }
 
-    if (!temPermissao(usuario, 'gerenciarEstrutura', vaga.condominioId)) {
+    if (!temPermissao(usuario, 'vincularVagaUnidade', vaga.condominioId)) {
       return NextResponse.json(
         { error: 'Acesso negado ao condominio especificado' },
         { status: 403 }
