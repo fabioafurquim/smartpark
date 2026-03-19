@@ -7,6 +7,8 @@ import {
   Plus, 
   Search, 
   Building2, 
+  Copy,
+  FileDown,
   MapPin, 
   Phone, 
   Mail, 
@@ -28,6 +30,7 @@ interface Condominio {
   endereco: string;
   telefone?: string;
   email?: string;
+  codigoUnico: string;
   modalidade: 'EMPRESTIMO' | 'LOCACAO' | 'HIBRIDO';
   totalVagas: number;
   vagasOcupadas: number;
@@ -63,7 +66,61 @@ export default function AdminCondominiosPage() {
     modalidade: 'EMPRESTIMO'
   });
   const [salvando, setSalvando] = useState(false);
+  const [baixandoInformativoId, setBaixandoInformativoId] = useState<string | null>(null);
   const [errosValidacao, setErrosValidacao] = useState<Record<string, string>>({});
+
+  const copiarCodigoCondominio = async (codigoUnico: string) => {
+    try {
+      await navigator.clipboard.writeText(codigoUnico);
+      showToast({
+        title: 'Codigo copiado',
+        description: `O codigo ${codigoUnico} foi copiado para a area de transferencia.`,
+        variant: 'success',
+      });
+    } catch {
+      showToast({
+        title: 'Falha ao copiar',
+        description: 'Nao foi possivel copiar o codigo do condominio.',
+        variant: 'error',
+      });
+    }
+  };
+
+  const baixarInformativoCondominio = async (condominio: Condominio) => {
+    try {
+      setBaixandoInformativoId(condominio.id);
+
+      const response = await fetch(`/api/admin/condominios/${condominio.id}/informativo`);
+      if (!response.ok) {
+        const erro = await response.json().catch(() => null);
+        throw new Error(erro?.erro || erro?.error || 'Nao foi possivel gerar o informativo.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `informativo-${condominio.codigoUnico}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      showToast({
+        title: 'Informativo gerado',
+        description: `O PDF de cadastro do condominio ${condominio.nome} foi baixado.`,
+        variant: 'success',
+      });
+    } catch (error) {
+      showToast({
+        title: 'Falha ao gerar informativo',
+        description: error instanceof Error ? error.message : 'Erro ao gerar o PDF.',
+        variant: 'error',
+      });
+    } finally {
+      setBaixandoInformativoId(null);
+    }
+  };
 
   // Buscar condomínios
   const buscarCondominios = useCallback(async () => {
@@ -314,6 +371,17 @@ export default function AdminCondominiosPage() {
                 <MapPin className="h-3 w-3 mr-1" />
                 {condominio.endereco}
               </div>
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                Codigo: {condominio.codigoUnico}
+                <button
+                  type="button"
+                  onClick={() => void copiarCodigoCondominio(condominio.codigoUnico)}
+                  className="rounded p-0.5 text-blue-700 transition-colors hover:bg-blue-100"
+                  aria-label={`Copiar codigo do condominio ${condominio.nome}`}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -390,6 +458,14 @@ export default function AdminCondominiosPage() {
         if (!condominio) return null;
         return (
           <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void baixarInformativoCondominio(condominio)}
+              disabled={baixandoInformativoId === condominio.id}
+            >
+              <FileDown className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -488,21 +564,41 @@ export default function AdminCondominiosPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Status
+                  Codigo do Condominio
                 </label>
-                <p className="mt-1">
-                  <span
-                    className={cn(
-                      'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                      modalDetalhes.condominio.ativo
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    )}
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-semibold tracking-[0.18em] text-blue-700">
+                    {modalDetalhes.condominio.codigoUnico}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void copiarCodigoCondominio(modalDetalhes.condominio!.codigoUnico)}
                   >
-                    {modalDetalhes.condominio.ativo ? 'Ativo' : 'Inativo'}
-                  </span>
-                </p>
+                    <Copy className="mr-1 h-4 w-4" />
+                    Copiar
+                  </Button>
+                </div>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Status
+              </label>
+              <p className="mt-1">
+                <span
+                  className={cn(
+                    'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                    modalDetalhes.condominio.ativo
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
+                  )}
+                >
+                  {modalDetalhes.condominio.ativo ? 'Ativo' : 'Inativo'}
+                </span>
+              </p>
             </div>
 
             <div>
@@ -540,6 +636,18 @@ export default function AdminCondominiosPage() {
               <p className="mt-1 text-sm text-gray-900">
                 {getModalidadeCondominioLabel(modalDetalhes.condominio.modalidade)}
               </p>
+            </div>
+
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void baixarInformativoCondominio(modalDetalhes.condominio!)}
+                loading={baixandoInformativoId === modalDetalhes.condominio.id}
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                Gerar informativo para moradores
+              </Button>
             </div>
 
             <div className="grid grid-cols-3 gap-4">

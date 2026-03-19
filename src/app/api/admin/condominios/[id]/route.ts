@@ -78,6 +78,7 @@ export async function GET(
       endereco: condominio.endereco,
       telefone: condominio.telefone,
       email: condominio.email,
+      codigoUnico: condominio.codigoUnico,
       modalidade: condominio.modalidade,
       totalVagas: condominio._count.vagas,
       vagasOcupadas: condominio.vagas.length,
